@@ -1,0 +1,86 @@
+\documentclass[10pt,a4paper,notitlepage]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[czech]{babel}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{makeidx}
+\usepackage{graphicx}
+\author{Jan Tušil <410062@mail.muni.cz>}
+\title{LLVM PO}
+\begin{document}
+
+Možná, že strukturní prvek na nejvyšší úrovni by měl být "chapter", ne "section".
+
+\section{Cíl práce}
+Exploze stavového prostoru při model checkingu, Partial Order Redukce to řeší,
+LLVM model checking je super a chceme tam POR.
+
+To, co chceme, je vygenerovaný NTS, který není paralelní. Tedy výstupem redukce
+není explicitní stavový prostor.
+
+\section{Použité technologie}
+Proč volíme právě NTS? Jakou podmnožinu těch jazyků podporuji?
+\subsection{LLVM}
+\subsubsection{Omezení}
+Nestaráme se o pointery, nepodporuji pole (zatím)
+
+
+\subsection{NTS}
+\subsubsection{Rozšíření}
+Tedy přidáváme datový typ BitVector, typové třídy a implicitní typová konverze.
+
+Btw můžeme využívat anotace. Zatím je využíváme jenom trochu, ale dají se o nich vkládat
+i nějaké informace z LLVM nebo další postřehy.
+
+\subsubsection{Omezení}
+Zatím nepodporuji složitější operace s poli. Také nechápu, jak pracovat s parametry (par).
+
+\section{Jak na to?}
+
+\subsection{Použitá terminologie}
+
+Velký obraz - jak se vypořádat s funkčními voláními? Jaké jsem měl možnosti?
+
+Výsledkem trojice: llvm2nts, inliner, vlastní POR. Všechno pracuje nad knihovnou pro paměťovou
+reprezentaci NTS. Related work: Petrův parser.
+
+Všechno ve formě knihovny - jednoduché rozhraní, snadno použitelné.
+
+\subsection{Architektura libNTS}
+- inspirováno LLVM
+
+
+\subsection{Překlad llvm na nts}
+Btw nepatří rozhodnutí o omezení vstupního jazyka sem?
+\subsubsection{Model paralelizace}
+Že tedy budu mít nějaký thread pool a funkci thread\_create, která nějakému vláknu (nebo procesu?) přiřadí úlohu, jež bude dané vlákno vykonávat. Kromě thread poolu ještě poběží hlavní vlákno.
+
+\subsection{Inlining}
+Jo teda nepodporuju rekurzi, a proto si můžu dovolit to, co dělám v inlineru - prostě tak dlouho zainlinovávám jednotlivé BasicNts, až mi nezůstané žádné volání.
+
+\subsection{POR}
+Pozor, POR je víc druhů. Uvézt chytrou knížku, Ample sety.
+\subsubsection{Jak to má fungovat}
+Nakonec jde jenom o to, zda proměnnou, kterou nějaký přechod používá, používá i jiné vlákno
+\subsubsection{Problém velkého procesu}
+Protože každé vlákno (kromě vlastního) může potenciálně vykonávat libovolnou úlohu, tak téměř každé vlákno může použít téměř každou proměnnou. Redukce by se zredukovala na pouhý test "používám globální proměnné"?
+Tedy je potřeba mít rozdělené stavy / přechody do úloh. O každé úloze spočítáme, jaké globální proměnné používá, a také, jaké jiné úlohy může aktivovat. Potom, pokud budeme znát řídící stav každého vlákna, můžeme zjistit, jaké úlohy běží a tedy i jaké globální proměnné jsou důležité.
+
+\subsubsection{Problém velkého pole}
+V případě, že bychom měli pole takové, že by na každou jeho pozici přistupoval nejvýše jeden proces,
+a procesů bychom měli mnoho, vyplatilo by se sledovat jeho jednotlivé buňky zvlášť. To ale neděláme. Btw jedno takové pole máme.
+
+\subsubsection{Problém závislosti na datech}
+Zda může nějaké vlákno běžet, závisí na datech. My se ale o data moc nestaráme (TODO: tohle je třeba ujasnit na začátku). Tedy nemůžeme vědět, že na začátku poběží jenom hlavní vlákno. Tedy zeserializovaný systém bude obsahovat běhy, jejihž podmínka cesty bude nesplnitelná. Obecně tohle řešit snadno nelze, ale pokud se omezíme na zjištění informace, zda nějaké vlákno z thread poolu může začít vykonávat nějakou úlohu, stačí nám sledovat pár zvolených proměnných. Na to máme dvě možnosti:
+
+a) Analyzovat vykonávané přechody, zda modifikují naše vybrané proměnné. Předpokládáme, že většina formulí bude mít hezký tvar, a že tedy nemusíme vědět všechno na to, abychom některé mohli rovnou označit za nesplnitelné a o jiných prohlásit, že modifikují námi vybranou proměnnou jednoduchým způsobem.
+
+b) Umět rozpoznat původně existující struktury i v přeloženém a zplacatělém přechodovém systému. Tedy musíme vědět, co jsou pracovní vlákna, co dělá \_\_thread\_create (a jak jí poznám) a další věci.
+
+
+
+
+
+\end{document}
