@@ -22,6 +22,8 @@ není explicitní stavový prostor.
 \chapter{Použité technologie}
 Proč volíme právě NTS? Jakou podmnožinu těch jazyků podporuji?
 \section{LLVM}
+\subsection{Typový systém}
+\label{subsec:llvm-type-system}
 \subsection{Omezení}
 Nestaráme se o pointery, nepodporuji pole (zatím)
 
@@ -33,7 +35,9 @@ Potřeba říci, že máme datové typy Int, Bool, Real. Int, Real jsou matemati
 
 \subsection{Rozšíření}
 
-Protože do NTS překládáme LLVM, které používá integery s pevnou bitovou šířkou a také bitové logické operace, musíme i my v NTS s tím umět nějak pracovat. V původní verzi NTS fungují logické operace jenom na datovém typu Bool. Máme tedy v zásadě nekolik možností:
+Jak můžeme vidět v předchozích částech, typový systém jazyka NTS se od typového systému LLVM IR 
+%\ref{subsec:llvm-type-system}
+v mnohém liší. Zatímco v LLVM IR mohou stejný datový typ (Integer type, například i8) využívat jak aritmetické instrukce (binary instructions), tak bitové logické instrukce (bitwise binary instructions), jazyk NTS již na úrovni syntaxe podporuje logické operace pouze nad termy typu Bool. Pro překlad LLVM IR do NTS je tedy nezbytné cílový jazyk vhodným způsobem rozšířit. Možností je více:
 \begin{enumerate}
 \item Rozšířit logcké operace i nad datový typ Int. Jaký by ale byl význam například negace? Totiž, pro různou bitovou šířku dává negace různý výsledek. Budeme-li mít například proměnnou typu Int s hodnotou 5 (binárně 101), pokud se na ní budeme dívat jako na 4 bitové číslo (tedy 0101), dostaneme po negaci 10 (1010), pokud se na ní budeme dívat jako na 3 bitové číslo, dostaneme po negaci hodnotu 2 (binárně 010). 
 
