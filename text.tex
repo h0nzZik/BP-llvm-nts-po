@@ -7,10 +7,11 @@
 \usepackage{amssymb}
 \usepackage{makeidx}
 \usepackage{graphicx}
-\usepackage{syntax}   % texlive-mdwtools
+\usepackage{syntax}    % texlive-mdwtools
 \usepackage{glossaries}
-\usepackage{fixmetodonotes}
+\usepackage{todonotes} % command \todo
 \usepackage{hyperref}
+\usepackage{listings}
 \author{Jan Tušil <410062@mail.muni.cz>}
 \title{LLVM PO}
 \begin{document}
@@ -140,32 +141,40 @@ Zatím nepodporuji složitější operace s poli. Také nechápu, jak pracovat s
 
 \section{Velký obraz}
 
-Velký obraz - jak se vypořádat s funkčními voláními? Jaké jsem měl možnosti?
+%Velký obraz - jak se vypořádat s funkčními voláními? Jaké jsem měl možnosti?
 
-Výsledkem trojice: llvm2nts, inliner, vlastní POR. Všechno pracuje nad knihovnou pro paměťovou
-reprezentaci NTS. Related work: Petrův parser.
+%Výsledkem trojice: llvm2nts, inliner, vlastní POR. Všechno pracuje nad knihovnou pro paměťovou
+%reprezentaci NTS. Related work: Petrův parser.
 
-Všechno ve formě knihovny - jednoduché rozhraní, snadno použitelné.
+%Všechno ve formě knihovny - jednoduché rozhraní, snadno použitelné.
 
 %BTW: NTS je 'ten' - system
+\subsection{Funkční volání} %trochu nevhodný název pro sekci "Velký obraz"
 
-Chceme tedy z paralelního NTS, který vznikl překladem z LLVM IR, učinit sekvenční. Víme, že výsledný sekvencializovaný systém nebude obsahovat funkční volání (hierarchické nts) (TODO: proč?). Pokud o vstupním paralelním NTS nebudeme nic předpokládat, nástroj pro sekvencializaci bude muset umět korektně zacházet s funkčními voláními, protože ta mohou být součástí NTS. To zejména znamená, že nástroj si bude muset pro každý stav výstupního systému udržovat přehled o tom, jaké funkce jsou v jakém vlákně aktivní. Implementace takového nástroje nemusí být snadná, proto jsme učinili následující rozhodnutí:
+Chceme tedy z paralelního NTS, který vznikl překladem z LLVM IR, učinit sekvenční. Pokud o vstupním paralelním NTS nebudeme nic předpokládat, nástroj pro sekvencializaci bude muset umět korektně zacházet s funkčními voláními, protože ta mohou být součástí NTS. To zejména znamená, že nástroj si bude muset pro každý stav výstupního systému udržovat přehled o tom, jaké funkce jsou v jakém vlákně aktivní. Implementace takového nástroje nemusí být snadná, proto jsme učinili následující rozhodnutí:
 
 % tohle bych chtel v sedem ramecku, podobne jako byvaji citace nebo theoremy
-Nástroj pro sekvencializaci předpokládá, že vstupní paralelní systém neobsahuje funkční volání, tedy v termínech NTS není hierarchický. Takové NTS budeme dále označovat jako "ploché".
+Nástroj pro sekvencializaci předpokládá, že vstupní paralelní systém neobsahuje funkční volání, tedy (v termínech) NTS není hierarchický. Takové NTS budeme dále označovat jako "ploché".
 
 Většina skutečných programů v jazyce LLVM IR ovšem obsahují funkční volání, a rádi bychom takové programy podporovali. Nabízejí se dvě možnosti, jak takovou podporu zajistit. První spočívá v tom, že paralelní program v jazyce LLVM IR přeložíme na paralelní a (potenciálně) hierarchický přechodový systém v jazyce NTS, který následně převedeme na ekvivalentní paralelní plochý přechodový systém. Alternativní možností je nejprve odstranit funkční volání z paralelního LLVM IR programu a následně tento plochý program převést na plochý paralelní přechodový systém.
 
 Tak či onak, programy s rekurzivním voláním nebudou podporovány.
 
-\begin{enumerate}
-\item [Zplošťování NTS] Výhody a nevýhody
-\item [Zplošťování LLVM] Zploštění programu v LLVM IR nevyžaduje téměř žádnou další práci, protože již na tuto úlohu existuje llvm průchod. Jmenuje se
+\paragraph{Zplošťování LLVM}
+Zploštění programu v LLVM IR nevyžaduje téměř žádnou další práci, protože již na tuto úlohu existuje llvm průchod. Jmenuje se
 \href{http://llvm.org/docs/Passes.html#inline-function-integration-inlining}
 {inline} a je součástí projektu LLVM. Nicméně nástroj pro překlad LLVM IR na NTS musí umět korektně přeložit volání funkce
 \href{http://man7.org/linux/man-pages/man3/pthread_create.3.html}
 {pthread_create(3)}, které v tomto případě nemůže být přeloženo jako volání BasicNts na úrovni NTS. Volání této funkce by tedy muselo být vhodně přeloženo již na úrovni LLVM kódu.
-\end{enumerate}
+
+\paragraph{Zplošťování NTS}
+Přestože je pro zplošťování NTS potřeba udělat o něco více práce, napsání odpovídajícího nástroje nám může umožnit sekvencializaci libovolného NTS. Navíc nejsme omezeni na práci s plochými NTS jako v předchozím případě. Z uvedených důvodů tato práce využívá tento přístup.
+
+\subsection{Architektura}
+Celý problém se tedy rozpadá na několik částí. Nejprve potřebujeme přeložit program z jazyka LLVM IR do formalizmu NTS, poté z přeloženého programu odstranit volání subsystémů, plochý program sekvencializovat s využitím partial order redukce a nakonec ho uložit do souboru. Pro spolupráci těchto částí je třeba mít vybudovanou vhodnou paměťovou reprezentaci programu v jazyce NTS. Existence parseru by byla užitečná (zejména pro testování), ale není nutná.
+
+%Přestože existuje
+
 
 \section{Architektura libNTS}
 - inspirováno LLVM
@@ -173,8 +182,41 @@ Tak či onak, programy s rekurzivním voláním nebudou podporovány.
 
 \section{Překlad llvm na nts}
 Btw nepatří rozhodnutí o omezení vstupního jazyka sem?
+
 \subsection{Model paralelismu}
-Že tedy budu mít nějaký thread pool a funkci thread\_create, která nějakému vláknu (nebo procesu?) přiřadí úlohu, jež bude dané vlákno vykonávat. Kromě thread poolu ještě poběží hlavní vlákno.
+\todo{Možná, že popis paralelních modelů LLVM a NTS nepatří do této sekce. Někde to ale vysvětlit musím.}
+
+\subsubsection{LLVM, pthreads}
+Jazyk LLVM IR sám neposkytuje podporu pro explicitní paralelismus. Proto podporujeme posixovou knihovnu pro vlákna, pthreads (resp. její část). Nejzajímavější funkcí z této knihovny je pthread\_create, která jako jeden ze svých argumentů přijímá pointer na funkci, jež následně spustí v novém vytvořeném vlákně.Volání této funkce se může ve zdrojovém programu vyskytnout kdekoliv, a na umístění a četnost těchto výskytů neklademe žádná omezení. Omezujeme ale možnosti použití této funkce, a to následujícím způsobem:
+
+\begin{enumerate}
+\item Argument parametru start\_routine musí být přímo funkce, nikoliv jiný funkční ukazatel.
+\item Všechny ostatní argumenty funkce pthread\_create musí být null.
+\item Návratová hodnota funkce pthread\_create nesmí být použita.
+\item Funkce, předaná jako argument parametru start\_routine, nesmí používat svůj parametr.
+\item Návratová hodnota této funkce musí být vždy null.
+\end{enumerate}
+
+\begin{figure}[h!]
+\begin{lstlisting}[language=C]
+int pthread_create ( pthread_t *thread,
+                     const pthread_attr_t *attr,
+                     void *(*start_routine) (void *),
+                     void *arg                        );
+\end{lstlisting}
+\end{figure}
+
+\subsubsection{NTS}
+Jazyk NTS řeší paralelismus odlišným způsobem. Počet vláken je po celou dobu běhu programu stejný, tedy každé vlákno běží již od začátku. Každý paralelní NTS obsahuje řádek \todo{ne nutně řádek} ve tvaru
+\begin{lstlisting}
+instances basic_nts_1[2], basic_nts_2[3*N+4], ... , main_nts[1];
+\end{lstlisting}
+který určuje, jaké vlákno bude vykonávat jaký přechodový (sub)systém (BasicNts). Uvedený příklad specifikuje, že dvě vlákna (s id 0 a 1) budou vykonávat BasicNts basic\_nts\_1, dalších několik vláken (s id 2, 3, 4, \ldots 3*N+5) bude vykonávat basic\_nts\_2 a vlákno s nejvyšším id bude vykonávat main\_nts.
+
+\subsubsection{Překlad}
+V případě paralelního LLVM překládací program vygeneruje NTS, jež vytváří 1 hlavní vlákno a N vláken pracovních. Každé pracovní vlákno má přiřazeno stav a v každém čase se nachází buď ve stavu nečinném, nebo ve stavu činném. Protože na začátku běhu programu v jazyce LLVM IR je spuštěno pouze jedno vlákno, zatímco v přechodovém systému NTS jsou spuštěna všechna vlákna, chceme, aby běžící pracovní vlákna neměla žádný \textit{efekt}. Tedy pracovní vlákno bude ve výchozím stavu v režimu nečinném. Veškerá volání funkcí \texttt{pthread\_create} nahradíme kódem, který způsobí, že se nějaké nečinné pracovní vlákno stane činným a začne vykonávat kód odpovídající funkce. Po ukončení běhu této funkce vlákno opět přejde do stavu nečinnosti a je tak možné ho znovu využít.
+
+
 
 \section{Inlining}
 Jo teda nepodporuju rekurzi, a proto si můžu dovolit to, co dělám v inlineru - prostě tak dlouho zainlinovávám jednotlivé BasicNts, až mi nezůstané žádné volání.
