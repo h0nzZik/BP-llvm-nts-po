@@ -8,6 +8,9 @@
 \usepackage{makeidx}
 \usepackage{graphicx}
 \usepackage{syntax}   % texlive-mdwtools
+\usepackage{glossaries}
+\usepackage{fixmetodonotes}
+\usepackage{hyperref}
 \author{Jan Tušil <410062@mail.muni.cz>}
 \title{LLVM PO}
 \begin{document}
@@ -135,6 +138,8 @@ Zatím nepodporuji složitější operace s poli. Také nechápu, jak pracovat s
 
 \section{Použitá terminologie}
 
+\section{Velký obraz}
+
 Velký obraz - jak se vypořádat s funkčními voláními? Jaké jsem měl možnosti?
 
 Výsledkem trojice: llvm2nts, inliner, vlastní POR. Všechno pracuje nad knihovnou pro paměťovou
@@ -142,13 +147,33 @@ reprezentaci NTS. Related work: Petrův parser.
 
 Všechno ve formě knihovny - jednoduché rozhraní, snadno použitelné.
 
+%BTW: NTS je 'ten' - system
+
+Chceme tedy z paralelního NTS, který vznikl překladem z LLVM IR, učinit sekvenční. Víme, že výsledný sekvencializovaný systém nebude obsahovat funkční volání (hierarchické nts) (TODO: proč?). Pokud o vstupním paralelním NTS nebudeme nic předpokládat, nástroj pro sekvencializaci bude muset umět korektně zacházet s funkčními voláními, protože ta mohou být součástí NTS. To zejména znamená, že nástroj si bude muset pro každý stav výstupního systému udržovat přehled o tom, jaké funkce jsou v jakém vlákně aktivní. Implementace takového nástroje nemusí být snadná, proto jsme učinili následující rozhodnutí:
+
+% tohle bych chtel v sedem ramecku, podobne jako byvaji citace nebo theoremy
+Nástroj pro sekvencializaci předpokládá, že vstupní paralelní systém neobsahuje funkční volání, tedy v termínech NTS není hierarchický. Takové NTS budeme dále označovat jako "ploché".
+
+Většina skutečných programů v jazyce LLVM IR ovšem obsahují funkční volání, a rádi bychom takové programy podporovali. Nabízejí se dvě možnosti, jak takovou podporu zajistit. První spočívá v tom, že paralelní program v jazyce LLVM IR přeložíme na paralelní a (potenciálně) hierarchický přechodový systém v jazyce NTS, který následně převedeme na ekvivalentní paralelní plochý přechodový systém. Alternativní možností je nejprve odstranit funkční volání z paralelního LLVM IR programu a následně tento plochý program převést na plochý paralelní přechodový systém.
+
+Tak či onak, programy s rekurzivním voláním nebudou podporovány.
+
+\begin{enumerate}
+\item [Zplošťování NTS] Výhody a nevýhody
+\item [Zplošťování LLVM] Zploštění programu v LLVM IR nevyžaduje téměř žádnou další práci, protože již na tuto úlohu existuje llvm průchod. Jmenuje se
+\href{http://llvm.org/docs/Passes.html#inline-function-integration-inlining}
+{inline} a je součástí projektu LLVM. Nicméně nástroj pro překlad LLVM IR na NTS musí umět korektně přeložit volání funkce
+\href{http://man7.org/linux/man-pages/man3/pthread_create.3.html}
+{pthread_create(3)}, které v tomto případě nemůže být přeloženo jako volání BasicNts na úrovni NTS. Volání této funkce by tedy muselo být vhodně přeloženo již na úrovni LLVM kódu.
+\end{enumerate}
+
 \section{Architektura libNTS}
 - inspirováno LLVM
 
 
 \section{Překlad llvm na nts}
 Btw nepatří rozhodnutí o omezení vstupního jazyka sem?
-\subsection{Model paralelizace}
+\subsection{Model paralelismu}
 Že tedy budu mít nějaký thread pool a funkci thread\_create, která nějakému vláknu (nebo procesu?) přiřadí úlohu, jež bude dané vlákno vykonávat. Kromě thread poolu ještě poběží hlavní vlákno.
 
 \section{Inlining}
