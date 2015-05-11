@@ -13,11 +13,22 @@
 \usepackage{hyperref}
 \usepackage{listings}
 \usepackage{amsthm}
+\usepackage[
+   backend=biber      % if we want unicode 
+  ,style=iso-numeric % or iso-numeric for numeric citation method          
+  ,babel=other        % to support multiple languages in bibliography
+  ,sortlocale=cs_CZ   % locale of main language, it is for sorting
+  ,bibencoding=UTF8   % this is necessary only if bibliography file is in different encoding than main document
+]{biblatex}
+
+\addbibresource{literature.bib}
 
 \author{Jan Tušil <410062@mail.muni.cz>}
 \title{LLVM PO}
 
 \newtheorem{definition}{Definice}
+\newtheorem{decision}{Rozhodnutí}
+\newcommand{\tuple}[1]{\langle #1 \rangle}
 
 
 \begin{document}
@@ -173,7 +184,9 @@ Tyto dvě části jsou poměrně nezávislé a mohou být implementovány jako r
 Chceme tedy z paralelního NTS, který vznikl překladem z LLVM IR, učinit sekvenční. Pokud o vstupním paralelním NTS nebudeme nic předpokládat, nástroj pro sekvencializaci bude muset umět korektně zacházet s funkčními voláními, protože ta mohou být součástí NTS. To zejména znamená, že nástroj si bude muset pro každý stav výstupního systému udržovat přehled o tom, jaké funkce jsou v jakém vlákně aktivní. Implementace takového nástroje nemusí být snadná, proto jsme učinili následující rozhodnutí:
 
 % tohle bych chtel v sedem ramecku, podobne jako byvaji citace nebo theoremy
+\begin{decision}
 Nástroj pro sekvencializaci předpokládá, že vstupní paralelní systém neobsahuje funkční volání, tedy (v termínech) NTS není hierarchický. Takové NTS budeme dále označovat jako "ploché".
+\end{decision}
 
 Většina skutečných programů v jazyce LLVM IR ovšem obsahují funkční volání, a rádi bychom takové programy podporovali. Nabízejí se dvě možnosti, jak takovou podporu zajistit. První spočívá v tom, že paralelní program v jazyce LLVM IR přeložíme na paralelní a (potenciálně) hierarchický přechodový systém v jazyce NTS, který následně převedeme na ekvivalentní paralelní plochý přechodový systém. Alternativní možností je nejprve odstranit funkční volání z paralelního LLVM IR programu a následně tento plochý program převést na plochý paralelní přechodový systém.
 
@@ -285,8 +298,29 @@ V případě paralelního LLVM překládací program vygeneruje NTS, jež vytvá
 \section{Inlining}
 Jo teda nepodporuju rekurzi, a proto si můžu dovolit to, co dělám v inlineru - prostě tak dlouho zainlinovávám jednotlivé BasicNts, až mi nezůstané žádné volání.
 
-\section{POR}
-Pozor, POR je víc druhů. Uvézt chytrou knížku, Ample sety.
+\section{Sekvencializace}
+\begin{definition}
+Řídící stav sekvencializovaného plochého paralelního NTS s k vlákny je k-tice $q = \tuple{q_0, \ldots, q_{k-1}}$, kde $q_i$ je řídící stav BasicNts, který je vykonáván ve vlákně s $\texttt{tid} = i$.
+\end{definition}
+V souladu s tím, co bylo řečeno v úvodu \todo{říci to v úvodu}, řídící stavy sekvencializovaného NTS nenesou informaci o valuaci datových proměnných. \todo{Pokud ano, tak pouze pro optimalizaci - v budoucnu.} S každým řídícím stavem $q$ sekvencializovaného NTS je spojena množina přechodů $\texttt{Outgoing}(q)$, vedoucích z tohoto stavu.
+\begin{equation}
+\texttt{Outgoing}(q) = \texttt{Outgoing}(q_0) \cup \ldots \cup \texttt{Outgoing}(q_{k-1})
+\end{equation}
+
+V rámci zachování jednoduchosti zde používáme o jednodušší definici stavu, než v \cite{NTSref}, zejména vypouštíme definici valuace proměnných.
+\begin{definition}
+Stav $s$ sekvencializovaného přechodového systému je dvojice $s = \tuple{q, v}$, kde $v$ je řídící stav daného systému a $v$ značí valuaci (globálních i všech lokálních) proměnných.
+\end{definition}
+
+\todo{Je třeba rozlišit mezi přechody v paralelním, naivně sekvencializovaném a redukovaném systému.}
+
+\subsection{Jednoduchá sekvencializace}
+
+
+\subsection{Partial Order Reduction}
+Partial Order Reduction je technika pro redukci stavového prostoru (paralelních) programů, která využívá komutativity paralelně vykonávaných přechodů. Pokud lze efektivně ověřit, že stav programu po vykonání přechodů $\texttt{t}_1$ a $t_2$ nezávisí na jejich pořadí a ověřovaná vlastnost není citlivá na jednotlivé přechody, není třeba uvažovat některé možné běhy. Technika použitá v této práci vychází z techniky popsané v \cite{CLARKE}.
+
+
 \subsection{Jak to má fungovat}
 Nakonec jde jenom o to, zda proměnnou, kterou nějaký přechod používá, používá i jiné vlákno
 
@@ -414,5 +448,7 @@ b) Umět rozpoznat původně existující struktury i v přeloženém a zplacat�
 
 
 \tableofcontents
+
+\printbibliography
 
 \end{document}
