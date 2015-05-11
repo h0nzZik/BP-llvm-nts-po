@@ -28,8 +28,17 @@ Proč volíme právě NTS? Jakou podmnožinu těch jazyků podporuji?
 \section{LLVM}
 \subsection{Typový systém}
 \label{subsec:llvm-type-system}
+
 \subsection{Omezení}
-Nestaráme se o pointery, nepodporuji pole (zatím)
+
+\subsubsection{Pole}
+Nepodporuji (zatím). Přidat podporů některých operací nad poli by ale nemusel být problém
+\subsubsection{Pointery}
+Nestaráme se o pointery
+\paragraph{Ale s proměnnými se pracuje zkrze pointery!}
+
+\subsubsection{Instrukce}
+Také nepodporuji znaménkovou aritmetiku a hromadu instrukcí. Například znaménkové přetečení při add neošetřuji, přestože je to principiálně možné. Vede to k složitým formulím. Pokud ale bude překladová utilita vyvíjená dále, je to jedna z věcí, která by mohla být volitelná (tedy jestli vracet nedefinovaný výsledek nebo přejít do err stavu nebo pokračovat jako nic). S tím souvisí Poison a Undef values.
 
 
 \section{NTS}
@@ -132,14 +141,18 @@ Zatím nepodporuji složitější operace s poli. Také nechápu, jak pracovat s
 
 \subsubsection{Pole}
 
-\subsection{Možná budoucí rozšíření}
-\subsubsection{Znaménkové datové typy}
-
 \chapter{Jak na to?}
 
 \section{Použitá terminologie}
 
 \section{Velký obraz}
+Cílem této práce tedy je vytvořit ze vstupního programu v jazyce LLVM IR, jež využívá posixová vlákna, odpovídající sekvenční přechodový systém v jazyce NTS. Tuto úlohu je možné přirozeně rozdělit na dvě části, a to na
+\begin{enumerate}
+\item přirozený překlad programu z LLVM IR do NTS se zachováním paralelismu (část dále označovaná jako překlad), a
+\item převod paralelního programu v jazyce NTS na sekvenční program (část dále označovaná jako sekvencializace).
+\end{enumerate}
+
+Tyto dvě části jsou poměrně nezávislé a mohou být implementovány jako rozdílné nástroje, pracující nad společnou knihovnou. Rozdělením navíc získáváme možnost ověřovat vlastnosti sekvenčních programů v jazyce LLVM IR nástrojem, který rozumí jazyku NTS \todo{Až na uvedená rozšíření. Nechtěli jsme mít možnost použít unbounded integery?}.
 
 %Velký obraz - jak se vypořádat s funkčními voláními? Jaké jsem měl možnosti?
 
@@ -178,16 +191,57 @@ Celý problém se tedy rozpadá na několik částí. Nejprve potřebujeme přel
 
 \section{Architektura libNTS}
 - inspirováno LLVM
-
+\todo{Existuje Javovská implementace NTS}
 
 \section{Překlad llvm na nts}
 Btw nepatří rozhodnutí o omezení vstupního jazyka sem?
 
+\subsection{Funkce}
+Jak jazyk NTS, tak LLVM IR podporují určitou formu hierarchického členění programu na podprogramy. Zatímco u LLVM IR je základní jednotkou tohoto členění funkce, v případě jazyka NTS jde o BasicNts, který reprezentuje jednoduchý přechodový systém. Jak funkce, tak BasicNts mohou mít libovolný počet (vstupních) parametrů zvoleného typu, ašak zatímco funkce může vracet nejvýše jednu hodnotu, BasicNts může definovat libovolný počet výstupních parametrů. Funkce i BasicNts navíc mohou definovat lokální proměnné. Vzhledem k těmto podobnostem je celkem přirozené překládat funkce z LLVM IR na BasicNts.
+
+\subsection{BasicBlocky}
+Každá funkce se skládá z BasicBlocků. Protože žádná instrukce uvnitř základního blocku nemění tok řízení a po jejím vykonání je vykonávána instrukce následující, můžeme každý základní blok s N vnitřními instrukcemi přeložit jako N nových řídících stavů, kde n-tý stav odpovídá stavu programu po vykonání n instrukcí. Sémantika jednotlivých vnitřních instrukcí bude poté zachycena v přechodových pravidlech mezi jednotlivými stavy.
+
+\paragraph{Terminující instrukce}
+Nicméně poslední instrukce v základním bloku může změnit tok řízení, například ukončit vykonávání funkce nebo skočit na začátek jiného základního bloku. Třída takovýchto instrukcí se nazývá "terminační instrukce", protože tyto instrukce ukončují základní blok. Odpovídající přechody tedy nemusí vést do nového stavu, ale do již existujícího stavu jiného základního bloku.
+
+\todo{Zmínit SSA}
+V jazyce LLVM IR existuje instruce Phi, reprezentující $\Phi$ uzel \todo{známe z teorie překladačů?} v SSA jazyce. Tato instrukce se nachází pouze na začátku základního bloku a jeí výsledek je závislý na předchozím dokončeném základním bloku. Z tohoto důvodu jsou při překladu funkce základní bloky očíslovány a každá terminující instrukce ukládá číslo svého základního bloku do speciální proměnné. Samotná phi instrukce však v době psaní tohoto textu není v překládacím nástroji implementována.
+
+\subsection{Znaménkovost}
+%\subsubsection{Vyjádření v neznaménkové aritmetice}
+Jak číselné datové typy v jazyce LLVM IR, tak přidaný BitVector typ v jazyce NTS jsou bezznaménkové. Nicméně některé LLVM instrukce (například ICMP) mohou interpretovat použité proměnné znaménkově. Přestože je principiálně možné vyjádřit sémantiku znaménkových operací pomocí bezznamnékové aritmetiky \todo{ukázat jak na to}, výsledné formule by byly složitější. \todo{zminit semantiku operaci nad BitVector}
+\begin{figure}[h!]
+\begin{lstlisting}
+%b = icmp slt i8 %x, 10
+\end{lstlisting}
+\end{figure}
+Tato instrukce přiřadí do proměnné 'b' hodnotu 1 právě pokud x je znaménkově menší (signed less then, slt) než hodnota 10, tedy právě pokud x bude mít hodnotu v rozsahu -128 až 9. Tento rozsah, vyjádřený v dvojkovém doplňkovém kódu \todo{Někde zmínit, že llvm ir využívá právě dvojkový doplněk}, odpovídá neznaménkovým hodnotám v rozsahu 0 \ldots 9 nebo 128 \ldots 255. 
+
+\begin{figure}[h!]
+\begin{lstlisting}
+%b = icmp slt i8 %x, %y
+\end{lstlisting}
+\end{figure}
+
+Pokud jsou ovšem obě hodnoty neznámé, porovnání je obtížnější. Výsledkem operace bude 1, právě pokud bude splněna jedna z následujících podmínek:
+
+\begin{enumerate}
+\item Hodnota proměnné x je záporná a hodnota proměnné y je kladná, tedy v unsigned aritmetice x > 127 a y <= 127.
+\item Obě proměnné mají shodné znaménko a zároveň x je neznaménkově menší než y.
+\end{enumerate}
+
+Jsou i jiné způsoby, jak v neznaménkové aritmetice vyjádřit chování této instrukce, ale nenašel jsem žádný elegantnější nebo jednodušší. Z tohoto důvodu současná verze překládacího nástroje nepodporuje překlad znaménkových operací do aritmetiky neznaménkových bitvektorů.
+
+%\subsubsection{Znaménkové datové typy v NTS}
+
 \subsection{Model paralelismu}
+\label{subsec:paralelism}
 \todo{Možná, že popis paralelních modelů LLVM a NTS nepatří do této sekce. Někde to ale vysvětlit musím.}
 
-\subsubsection{LLVM, pthreads}
-Jazyk LLVM IR sám neposkytuje podporu pro explicitní paralelismus. Proto podporujeme posixovou knihovnu pro vlákna, pthreads (resp. její část). Nejzajímavější funkcí z této knihovny je pthread\_create, která jako jeden ze svých argumentů přijímá pointer na funkci, jež následně spustí v novém vytvořeném vlákně.Volání této funkce se může ve zdrojovém programu vyskytnout kdekoliv, a na umístění a četnost těchto výskytů neklademe žádná omezení. Omezujeme ale možnosti použití této funkce, a to následujícím způsobem:
+Jazyky LLVM IR a NTS implementují paralelismus velice odlišně. Během návrhu překladu jsme preferovali pokrytí možných použití pthreads v LLVM před jednoduchostí výsledného NTS.
+
+\subsubsection{LLVM, pthreads}Jazyk LLVM IR sám neposkytuje podporu pro explicitní paralelismus. Proto podporujeme posixovou knihovnu pro vlákna, pthreads (resp. její část). Nejzajímavější funkcí z této knihovny je pthread\_create, která jako jeden ze svých argumentů přijímá pointer na funkci, jež následně spustí v novém vytvořeném vlákně.Volání této funkce se může ve zdrojovém programu vyskytnout kdekoliv, a na umístění a četnost těchto výskytů neklademe žádná omezení. Omezujeme ale možnosti použití této funkce, a to následujícím způsobem:
 
 \begin{enumerate}
 \item Argument parametru start\_routine musí být přímo funkce, nikoliv jiný funkční ukazatel.
@@ -216,6 +270,10 @@ který určuje, jaké vlákno bude vykonávat jaký přechodový (sub)systém (B
 \subsubsection{Překlad}
 V případě paralelního LLVM překládací program vygeneruje NTS, jež vytváří 1 hlavní vlákno a N vláken pracovních. Každé pracovní vlákno má přiřazeno stav a v každém čase se nachází buď ve stavu nečinném, nebo ve stavu činném. Protože na začátku běhu programu v jazyce LLVM IR je spuštěno pouze jedno vlákno, zatímco v přechodovém systému NTS jsou spuštěna všechna vlákna, chceme, aby běžící pracovní vlákna neměla žádný \textit{efekt}. Tedy pracovní vlákno bude ve výchozím stavu v režimu nečinném. Veškerá volání funkcí \texttt{pthread\_create} nahradíme kódem, který způsobí, že se nějaké nečinné pracovní vlákno stane činným a začne vykonávat kód odpovídající funkce. Po ukončení běhu této funkce vlákno opět přejde do stavu nečinnosti a je tak možné ho znovu využít.
 
+\todo{Vložit někam výsledný NTS kód}
+
+\paragraph{Implementace}
+%Překládací nástroj najde v IR kódu všechny funkce, které jsou použity jako argument funkce \texttt{pthread_create} a očísluje je. Následně vygeneruje BasicNts \texttt{thread_pool_routine} a přeloží do NTS.
 
 
 \section{Inlining}
@@ -225,8 +283,84 @@ Jo teda nepodporuju rekurzi, a proto si můžu dovolit to, co dělám v inlineru
 Pozor, POR je víc druhů. Uvézt chytrou knížku, Ample sety.
 \subsection{Jak to má fungovat}
 Nakonec jde jenom o to, zda proměnnou, kterou nějaký přechod používá, používá i jiné vlákno
+
+\todo{Možná trocha teorie}
+\subsubsection{Použitá heuristika}
+Pro každý stav sekvencializovaného systému se snažíme najít dostačující množinu jeho následníku tak, že postupně zkoušíme volit pro každý proces $i$ množinu $A_i$ přechodů v jeho řídícím stavu povolených. Definujeme množiny $W(A_i)$ a $R(A_i)$ proměnných, které mohou být některým z přechodů v $A_i$ změněny nebo čteny. Pro každý proces $P_i$ dále definujeme množinu $R_i$ globálních proměnných takovou, že pokud $P_i$ obsahuje přechod, který čte proměnnou $v$, pak $v \in R_i$. Také potřebujeme znát množinu $W_i$ globálních proměnných takovou, že pokud proces $P_i$ může změnit hodnotu proměnné $v$, pak $v \in W_i$.
+
+Pokud existuje, zvolíme takovou $A_i$, pro kterou platí, že pro libovolný jiný proces $P_j$ (t.ž $j \neq i$) platí, že žádný z přechodů tohoto procesu nemění ani nečte proměnné změněné některým z přechodů v $A_i$, ani  nemění žádou z proměnných, čtenou některým z vybraných přechodů. Formálněji
+\begin{equation}
+W(A_i) \cap (W_j \cup R_j) = \emptyset \land R(A_i) \cap W_j = \emptyset
+\end{equation}
+
+\todo{Popsat tu argumentaci z knizky?}
+
+\paragraph{Výpočet}
+Mějme vlákno $P_i$, které instancuje plochý BasicNts $B_i$. Pokud $B_i$ obsahuje $k$ přechody $t_1, \ldots t_k$, potom $W_i$ i $R_i$ můžeme spočítat jako sjednocení
+\begin{equation}
+W_i = W(t_1) \cup W(t_2) \cup \ldots \cup W(t_k)
+\end{equation}
+\begin{equation}
+R_i = R(t_1) \cup R(t_2) \cup \ldots \cup R(t_k)
+\end{equation}
+\todo{Dat to do jedne rovnice?}
+kde $W(t_j)$, $R(t_j)$ reprezentují množinu proměnných, které jsou modifikovány / čteny přechodem $t_j$.
+
+\todo{Formálněji popsat, co jsou proměnné čtené / modifikované nějakým přechodem}.
+
 \subsection{Problém velkého procesu}
-Protože každé vlákno (kromě vlastního) může potenciálně vykonávat libovolnou úlohu, tak téměř každé vlákno může použít téměř každou proměnnou. Redukce by se zredukovala na pouhý test "používám globální proměnné"?
+Ukazuje se, že pro zvolený model paralelismu \ref{subsec:paralelism} uvedená heuristika není příliš efektivní. Pro velkou množinu programů \todo{všechny, které lze vyjádřit v modelu "vytvoř vlákna na začátku", todo taky nekde popsat dalsi mozne modely} totiž napočítané množiny $W_i$ a $R_i$ obsahují mnoho proměnných, které ve skutečnosti vlákno $i$ nepoužívá.
+
+
+\subsubsection{Problémová situace}
+Uvažme například příklad \todo{reference}. Hlavní funkce vytvoří dvě vlákna, která používají vzájemně disjunktní množiny globálních proměnných. Po přeložení do jazyka NTS (se zvoleným modelem paralelismu) výsledné NTS obsahuje vygenerované BasicNts "__thread_pool_routine" \todo{Program to pojmenovava '__thread_poll_routine' - prijde opravit}, které obsahuje přechody, volající přeložené funkce @p1 a @p2.
+\begin{figure}[h!]
+\begin{lstlisting}
+@G1 = global i32 16;
+@G2 = global i32 0;
+
+define i8* @p1 ( i8* %x ) {
+	; some local calculations
+	store i32 42, i32* @G1;
+	ret i8* null;
+}
+
+define i8* @p2 ( i8* ) {
+	; some more local calculations
+	store i32 14, i32* @G2;
+	ret i8* null;
+}
+
+define void @main() {
+	call i32 @pthread_create ( ..., @p1, ... );
+	call i32 @pthread_create ( ..., @p2, ... );
+	ret void;
+}
+\end{lstlisting}
+\caption{Vlákna, využívající odlišnou sadu proměnných. Zjednodušeno.}
+\end{figure}
+
+\begin{figure}
+\begin{lstlisting}
+_thread_pool_routine {
+	initial	si;
+	si  -> sr1 { ( ( tps[tid] = 1 ) && havoc (  ) ) }
+	sr1 -> ss  { p2 (  ) }
+	ss  -> si  { ( tps'[ tid ] = [0] && havoc ( tps ) ) }
+	si  -> sr2 { ( ( tps[tid] = 2 ) && havoc (  ) ) }
+	sr2 -> ss  { p1 (  ) }
+	ss  -> si  { ( tps'[ tid ] = [0] && havoc ( tps ) ) }
+}
+\end{lstlisting}
+\caption{Přechodový systém pracovního vlákna}
+\end{figure}
+\todo{Opravit číslování vláken}
+
+Po zploštění tedy thread\_pool\_routine obsahuje přechody, které odpovídají původním funkcím p1 a p2. Protože tento BasicNts je vykonáván v každém pracovním vlákně, v každém pracovním vlákně jsou také obsaženy všechny přechody přeložených funkce p1 a p2. Napočítané množiny $W_i$ (a $R_i$) všech pracovních vláken jsou pak stejné.
+
+\subsubsection{Možné řešení}
+
+Protože každé pracovní vlákno (kromě vlastního) může potenciálně vykonávat libovolnou úlohu, tak téměř každé vlákno může použít téměř každou proměnnou. Redukce by se zredukovala na pouhý test "používám globální proměnné"?
 Tedy je potřeba mít rozdělené stavy / přechody do úloh. O každé úloze spočítáme, jaké globální proměnné používá, a také, jaké jiné úlohy může aktivovat. Potom, pokud budeme znát řídící stav každého vlákna, můžeme zjistit, jaké úlohy běží a tedy i jaké globální proměnné jsou důležité.
 
 \subsection{Problém velkého pole}
@@ -240,8 +374,13 @@ a) Analyzovat vykonávané přechody, zda modifikují naše vybrané proměnné.
 
 b) Umět rozpoznat původně existující struktury i v přeloženém a zplacatělém přechodovém systému. Tedy musíme vědět, co jsou pracovní vlákna, co dělá \_\_thread\_create (a jak jí poznám) a další věci.
 
+\chapter{Závěr}
+\section{Možná budoucí rozšíření}
+\todo{Petr psal autorům NTS, a pokud si dobře vzpomínám, jeden z nich projevil přání, abychom mohli překládat llvm do stávající podmnožiny NTS - tedy do intů. Imho to není dost dobře možné.}
+
+\subsection{Znaménkové datové typy v NTS}
 
 
-
+\tableofcontents
 
 \end{document}
