@@ -12,8 +12,14 @@
 \usepackage{todonotes} % command \todo
 \usepackage{hyperref}
 \usepackage{listings}
+\usepackage{amsthm}
+
 \author{Jan Tušil <410062@mail.muni.cz>}
 \title{LLVM PO}
+
+\newtheorem{definition}{Definice}
+
+
 \begin{document}
 
 \chapter{Cíl práce}
@@ -320,13 +326,13 @@ Uvažme například příklad \todo{reference}. Hlavní funkce vytvoří dvě vl
 @G2 = global i32 0;
 
 define i8* @p1 ( i8* %x ) {
-	; some local calculations
+	... ; some local calculations
 	store i32 42, i32* @G1;
 	ret i8* null;
 }
 
 define i8* @p2 ( i8* ) {
-	; some more local calculations
+	... ; some more local calculations
 	store i32 14, i32* @G2;
 	ret i8* null;
 }
@@ -356,12 +362,38 @@ _thread_pool_routine {
 \end{figure}
 \todo{Opravit číslování vláken}
 
-Po zploštění tedy thread\_pool\_routine obsahuje přechody, které odpovídají původním funkcím p1 a p2. Protože tento BasicNts je vykonáván v každém pracovním vlákně, v každém pracovním vlákně jsou také obsaženy všechny přechody přeložených funkce p1 a p2. Napočítané množiny $W_i$ (a $R_i$) všech pracovních vláken jsou pak stejné.
+Po zploštění tedy thread\_pool\_routine obsahuje přechody, které odpovídají původním funkcím p1 a p2. Protože tento BasicNts je vykonáván v každém pracovním vlákně, v každém pracovním vlákně jsou také obsaženy všechny přechody přeložených funkce p1 a p2. Napočítané množiny $W_i$ (a $R_i$) všech pracovních vláken jsou pak stejné a tedy zbytečně velké: některé z přechodů se v daném vlákně totiž nikdy nevykonají.
 
 \subsubsection{Možné řešení}
+Pro zvolený model paralelismu se zdá být rozložení programu na vlákna příliš hrubým, protože mnohá vlákna budou mít totožné řízení (BasicNts). Rozložme tedy program jemněji na jednotky, kterým budeme říkat "úlohy".
 
-Protože každé pracovní vlákno (kromě vlastního) může potenciálně vykonávat libovolnou úlohu, tak téměř každé vlákno může použít téměř každou proměnnou. Redukce by se zredukovala na pouhý test "používám globální proměnné"?
-Tedy je potřeba mít rozdělené stavy / přechody do úloh. O každé úloze spočítáme, jaké globální proměnné používá, a také, jaké jiné úlohy může aktivovat. Potom, pokud budeme znát řídící stav každého vlákna, můžeme zjistit, jaké úlohy běží a tedy i jaké globální proměnné jsou důležité.
+\begin{definition}
+Pro plochý přechodový systém N, množina úloh $\texttt{Tasks}(N)$ je množina taková, že libovolný řídící stav nějakého BasicNts z N leží v právě jedné úloze $T \in \texttt{Tasks}(N)$.
+\end{definition}
+
+Přechodové systémy, vzniklé překladem pomocí našeho nástroje z LLVM IR a následným zploštěním, obsahují právě dva použité BasicNts: první z nich odpovídá funkci \texttt{main} původního programu, druhý pak kódu vykonávaným vláknem z thread poolu. Pro účely této práce můžeme rozdělit jejich stavy do úloh následujícím způsobem.
+
+\begin{enumerate}
+\item Máme právě jednu hlavní úlohu $T_{\texttt{main}}$, právě jednu nečinnou úlohu $T_{\texttt{idle}}$ a jednu úlohu $T_i$ pro každou funkci $f_i$, která je někde v původním LLVM IR programu předávána jako parametr funkce \texttt{pthread\_create}.
+\item Každý stav $s$ hlavního BasicNts (tj. toho, který vznikl překladem funkce main) leží v $T_{\texttt{main}}$.
+\item Všechny stavy, odpovídající stavům nezploštělého \texttt{\_\_thread\_pool\_routine}, leží v $T_{\texttt{idle}}$.
+\item Všechny ostatní řídící stavy jsou řídícími stavy zploštělého \texttt{\_\_thread\_pool\_routine}, do kterého se dostaly během fáze zplošťování. Každý z těchto stavů přiřadíme úloze $T_i$ takové, že daný stav pochází z funkce $f_i$.
+\end{enumerate}
+
+Koncept úloh přirozeně rozšiřujeme i na přechody:
+\begin{definition}
+Přechod $t$ náleží úloze $T$ právě tehdy, když zdrojový řídící stav přechodu $t$ náleží úloze $T$.
+\end{definition}
+Protože každý přechod má jeden zdrojový řídící stav, každý přechod náleží právě jedné úloze. Tímto způsobem můžeme o každé úloze říci, jaké globální proměnné používá.
+
+\begin{definition}
+Úloha $T$ čte globální proměnnou $v$ právě tehdy, pokud existuje přechod $t$, který čte $v$ a patří $T$. Podobně, $T$ mění $v$ právě pokud nějaký přechod $t$ patřící $T$ mění $v$.
+\end{definition}
+
+\todo{Jak může úloha aktivovat jinou a co z toho plyne. Je ale třeba mít popsané základy POR.}
+
+%Protože každé pracovní vlákno (kromě vlastního) může potenciálně vykonávat libovolnou úlohu, tak téměř každé vlákno může použít téměř každou proměnnou. Redukce by se zredukovala na pouhý test "používám globální proměnné"?
+%Tedy je potřeba mít rozdělené stavy / přechody do úloh. O každé úloze spočítáme, jaké globální proměnné používá, a také, jaké jiné úlohy může aktivovat. Potom, pokud budeme znát řídící stav každého vlákna, můžeme zjistit, jaké úlohy běží a tedy i jaké globální proměnné jsou důležité.
 
 \subsection{Problém velkého pole}
 V případě, že bychom měli pole takové, že by na každou jeho pozici přistupoval nejvýše jeden proces,
