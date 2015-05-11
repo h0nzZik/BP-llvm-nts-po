@@ -299,26 +299,91 @@ V případě paralelního LLVM překládací program vygeneruje NTS, jež vytvá
 Jo teda nepodporuju rekurzi, a proto si můžu dovolit to, co dělám v inlineru - prostě tak dlouho zainlinovávám jednotlivé BasicNts, až mi nezůstané žádné volání.
 
 \section{Sekvencializace}
+V rámci zachování jednoduchosti v této části textu používáme o něco jednodušší definice než v \cite{NTSref}, zejména vypouštíme definici valuace proměnných.
+
 \begin{definition}
-Řídící stav sekvencializovaného plochého paralelního NTS s k vlákny je k-tice $q = \tuple{q_0, \ldots, q_{k-1}}$, kde $q_i$ je řídící stav BasicNts, který je vykonáván ve vlákně s $\texttt{tid} = i$.
+Řídící stav plochého paralelního NTS s k vlákny je k-tice $q = \tuple{q_0, \ldots, q_{k-1}}$, kde $q_i$ je řídící stav BasicNts, který je vykonáván ve vlákně s $\texttt{tid} = i$.
 \end{definition}
-V souladu s tím, co bylo řečeno v úvodu \todo{říci to v úvodu}, řídící stavy sekvencializovaného NTS nenesou informaci o valuaci datových proměnných. \todo{Pokud ano, tak pouze pro optimalizaci - v budoucnu.} S každým řídícím stavem $q$ sekvencializovaného NTS je spojena množina přechodů $\texttt{Outgoing}(q)$, vedoucích z tohoto stavu.
+%V souladu s tím, co bylo řečeno v úvodu \todo{říci to v úvodu}, řídící stavy sekvencializovaného NTS nenesou informaci o valuaci datových proměnných. \todo{Pokud ano, tak pouze pro optimalizaci - v budoucnu.}
+S každým řídícím stavem $q$ paralelního NTS je spojena množina přechodů $\texttt{Outgoing}(q)$, vedoucích z tohoto stavu.
 \begin{equation}
-\texttt{Outgoing}(q) = \texttt{Outgoing}(q_0) \cup \ldots \cup \texttt{Outgoing}(q_{k-1})
+\texttt{outgoing}(q) = \texttt{outgoing}(q_0) \cup \ldots \cup \texttt{outgoing}(q_{k-1})
 \end{equation}
 
-V rámci zachování jednoduchosti zde používáme o jednodušší definici stavu, než v \cite{NTSref}, zejména vypouštíme definici valuace proměnných.
 \begin{definition}
-Stav $s$ sekvencializovaného přechodového systému je dvojice $s = \tuple{q, v}$, kde $v$ je řídící stav daného systému a $v$ značí valuaci (globálních i všech lokálních) proměnných.
+Stav $s$ paralelního přechodového systému je dvojice $s = \tuple{q, v}$, kde $v$ je řídící stav daného systému a $v$ značí valuaci (globálních i všech lokálních) proměnných.
 \end{definition}
+Referenční manuál označujuje právě definovaný stav jako "konfiguraci".
 
-\todo{Je třeba rozlišit mezi přechody v paralelním, naivně sekvencializovaném a redukovaném systému.}
+\todo{Formálněji, odkaz do manuálu}
+\begin{definition}
+Pro libovolný přechod $t$ a stavy $s_1, s_2$ paralelního systému, zápisem $s_1 \xrightarrow{t} s_2$ rozumíme, že je možné dostat se ze stavu $s_1$ do stavu $s_2$ pomocí přechodu $t$. Zápisem
+\begin{equation*}
+s_1 \xrightarrow{t_1} s_2 \xrightarrow{t_2} \ldots \xrightarrow{t_{m-1}} s_m
+\end{equation*}
+zkracujeme konjunkci
+\begin{equation*}
+s_1 \xrightarrow{t_1} s_2 \land \ldots \land s_{m-1} \xrightarrow{t_{m-1}} s_m
+\end{equation*}
+\end{definition}
 
 \subsection{Jednoduchá sekvencializace}
 
 
 \subsection{Partial Order Reduction}
 Partial Order Reduction je technika pro redukci stavového prostoru (paralelních) programů, která využívá komutativity paralelně vykonávaných přechodů. Pokud lze efektivně ověřit, že stav programu po vykonání přechodů $\texttt{t}_1$ a $t_2$ nezávisí na jejich pořadí a ověřovaná vlastnost není citlivá na jednotlivé přechody, není třeba uvažovat některé možné běhy. Technika použitá v této práci vychází z techniky popsané v \cite{CLARKE}.
+
+\subsubsection{Nezávislost a komutativita přechodů}
+Na rozdíl od \cite{CLARKE} nevyžadujeme, aby přechodová pravidla byla (datově) deterministická. Všechny přechody v NTS již jsou kontrolně deterministické. Nezávislost přechodů tedy definujeme mírně odlišně.
+\begin{definition}
+Binární relace $I$ na přechodech paralelního NTS nazýváme relací nezávislosti, pokud je symetrická, antireflexivní a splňuje následující požadavek:
+Pro libovolné přechody $(t_1, t_2) \in I$ a libovolné stavy (konfigurace v NTS) $s_1, s_2, s_3$ takové, že  $s_1 \xrightarrow{t_1} s_2 \xrightarrow{t_2} s_3$ existuje stav $s_2'$ takový, že $s_1 \xrightarrow{t_2} s_2' \xrightarrow{t1} s_3$.
+\end{definition}
+Pro NTS bez nedeterministických přechodů je tato definice shodná s definicí v \cite{CLARKE}.
+
+\begin{definition}
+Přechod $t$ je povolený ve stavu (konfiguraci) $s$ (píšeme $t \in \texttt{enabled}(s)$ právě tehdy, když existuje stav $s'$ tak že $s \xrightarrow{t} s'$
+\end{definition}
+Je zřejmé, že pokud pro stav $s = \tuple(q, v)$ a přechod $t$ platí $t \in \texttt{enabled}(s)$, pak $t \in \texttt{outgoing}(q)$. Stavy takové, že vybraný $\texttt{ample}(s) = \texttt{enabled}(s)$, označujeme jako plně expandované.
+
+Technika, použitá v \cite{CLARKE}, tedy partial order reduction s využitím dostatečných (ample) množin, spočívá v tom, že pro každý stav (konfiguraci) paralelního systému je spočítána množina přechodů $\texttt{ample}(s) \subseteq \texttt{enabled}(s)$, která má tu vlastnost, že přechody mimo $\texttt{ample}(s)$ nejsou "důležité". Formálněji řečeno je třeba, aby ke každé cestě v úplném explicitním přechodovém grafu paralelního systému existovala (určitým způsobem) ekvivalentní cesta v tomtéž grafu, která nevyužívá žádné přechody mimo \texttt{ample}. Při konstrukci odpovídajícího sekvenčního systému pak není třeba uvažovat přechody mimo \texttt{ample}, což zmenšuje velikost výsledného sekvenčního systému.
+
+\subsubsection{Nutné podmínky}
+Kniha \cite{CLARKE} uvádí několik podmínek, postačují pro zachování korektnosti. Pro připomenutí, ta kniha pracuje pouze s deterministickými přechody. 
+
+\begin{enumerate}
+\item[C0] $\texttt{ample}(s) = \emptyset \Rightarrow \texttt{enabled}(s) = \emptyset$
+\item[C1] Každá cesta v úplném explicitním přechodovém grafu paralelního systému, začínající ve stavu $s$, má následující vlastnost: pokud přechod $t_2$, který se vyskytuje po cestě, závisí na nějakém přechodu $t_1 \in \texttt{ample}(s)$, pak se před jeho výskytem vyskytuje nějaký přechod $t_1' \in \texttt{ample}(s)$.
+\item[C2] Pokud $s$ není plně expandovaný, pak každý přechod z $\texttt{ample}(s)$ je neviditelný \todo{zadefinovat}.
+\item[C3] Nesmí existovat cyklus, který obsahuje přechod povolený v některém z jeho stavů a neobsažený v žádném z \texttt{ample} stavů cyklu.
+\end{enumerate}
+
+Uvedené podmínky se vztahují k explicitnímu CFG, zatímco náš nástroj generuje symbolický CFG a o proměnných si mnoho informací neudržuje. Protože $\texttt{ample}(s) \subseteq \texttt{enabled}(s)$, nemůžeme generovat ample sety přímo: museli bychom totiž rozhodnout, zda je nějaký z přechodů v daném stavu povolený. Náš nástroj namísto toho pro \textit{řídící} stav (tedy nikoliv konfiguraci) $q$ paralelního systému spočítá množinu $A(q) \subseteq \texttt{outgoing}(q)$ tak, že pro libovolný stav (konfiguraci) $s = (q, v)$ můžeme položit $\texttt{ample}(s) = A(q) \cap \texttt{enabled}(s)$.
+
+\paragraph{Problém s C0}
+Pokud zvolíme A neprázdné tak, že je dosažitelný stav, kdy žádný přechod z A nebude proveditelný, ale nějaký přechod mimo A ano, pak dojde k porušení C0. Toto je ale problém pouze pro obecné NTS, protože přechody překládané z LLVM IR jsou vždy proveditelné.
+
+
+\subsubsection{Jednoduchá heuristika}
+\paragraph{Nezávislost}
+Definice relace nezávislosti umožňuje jistou flexibilitu při výběru vhodné relace. Za nezávislé budeme považovat ty páry přechodů $(t_1, t_2)$, které splňují obě následující podmínky:
+\begin{itemize}
+\item Přechody $t_1$ a $t_2$ patří ke dvěma různým vláknům.
+\item Neexistuje proměnná, sdílená oběma přechody $t_1$ i $t_2$ a modifikovaná alespoň jedním z nich.
+\end{itemize}
+
+
+\paragraph{Ample sety}
+Pro řídící stav $q_0 = \tuple{q_{0,0}, \ldots, q_{0,k-1}}$ spočítáme $A(q_0)$ následujícím způsobem. Pro každé $0 \leq i < k$ zkusíme položit $A(q_0) = \texttt{outgoing}(q_{0,i})$. Pokud zkoušená množina splňuje podmínky C0 až C3, použijeme jí. Pokud žádná z vyzkoušených množin není použitelná, položíme $A(q_0) = \texttt{outgoing}(q_0)$.
+
+Jak uvádí \cite{CLARKE}, mohou nastat dvě situace, kdy dojde k porušení podmínky C1. V úplném explicitním přechodovém grafu musí existovat posloupnost $s_0 \xrightarrow{\alpha_0} \ldots \xrightarrow{\alpha_{m-1}} s_m \xrightarrow{\beta} s_{m+1}$, $s_j = (q_j, v_j)$ taková, že $\beta \in \texttt{enabled}(s_l)$, $\beta$ je závislý na nějakém přechodu ve zvoleném $\texttt{ample}(s_0)$ a všechny $\alpha_j$ jsou nezávislé na všech přechodech v $\texttt{ample}(s_0)$.
+
+\begin{itemize}
+\item Přechod $\beta$ pochází z vlákna $i$ (tedy $\beta \in \texttt{outgoing}(q_{m,i})$).  Protože $\alpha_i$ jsou nezávislé na $\texttt{ample}(s_0)$, musí pocházet z jiného vlákna než $i$, tedy $q_{0,i} = q_{m,i}$. Protože $\beta \not \in \texttt{ample}(s_0)$, tak $\beta \not \in \texttt{enabled}(s_0)$. V tom případě se ale stavy $s_0$ a $s_m$ liší ve valuaci některých globálních proměnných, které jsou používány přechodem $\beta$, a tedy nějaké vlákno s $tid \neq i$ obsahuje přechod, modifikující proměnnou, která je používána přechodem $\beta$.
+
+\item Pokud $\beta \not \in \texttt{outgoing}(q_{m,i})$, tedy přechod $\beta$ pochází z vlákna jiného než $i$, nějaké jiné vlákno než $i$ obsahuje přechod, který je závislý na nějakém přechodu z $\texttt{ample}(s_0)$. 
+\end{itemize}
+V obou případech tedy musí nějaké jiné vlákno obsahovat přechod, který sdílí proměnnou s nějakým přechodem z $\texttt{ample}(s_0)$, která je modifikována jedním z nich.
 
 
 \subsection{Jak to má fungovat}
