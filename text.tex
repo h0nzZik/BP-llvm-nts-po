@@ -13,6 +13,7 @@
 \usepackage{hyperref}
 \usepackage{listings}
 \usepackage{amsthm}
+\usepackage[detect-all]{siunitx} % numrange
 \usepackage[
    backend=biber      % if we want unicode 
   ,style=iso-numeric % or iso-numeric for numeric citation method          
@@ -58,7 +59,7 @@ Tyto dvě části jsou poměrně nezávislé a mohou být implementovány jako r
 %Všechno ve formě knihovny - jednoduché rozhraní, snadno použitelné.
 
 %BTW: NTS je 'ten' - system
-\subsection{Funkční volání} %trochu nevhodný název pro sekci "Velký obraz"
+\subsection{Funkční volání}
 
 Chceme tedy z paralelního NTS, který vznikl překladem z LLVM IR, učinit sekvenční. Pokud o vstupním paralelním NTS nebudeme nic předpokládat, nástroj pro sekvencializaci bude muset umět korektně zacházet s funkčními voláními, protože ta mohou být součástí NTS. To zejména znamená, že nástroj si bude muset pro každý stav výstupního systému udržovat přehled o tom, jaké funkce jsou v jakém vlákně aktivní. Implementace takového nástroje nemusí být snadná, proto jsme učinili následující rozhodnutí:
 
@@ -75,8 +76,8 @@ Tak či onak, programy s rekurzivním voláním nebudou podporovány.
 Zploštění programu v LLVM IR nevyžaduje téměř žádnou další práci, protože již na tuto úlohu existuje llvm průchod. Jmenuje se
 \href{http://llvm.org/docs/Passes.html#inline-function-integration-inlining}
 {inline} a je součástí projektu LLVM. Nicméně nástroj pro překlad LLVM IR na NTS musí umět korektně přeložit volání funkce
-\href{http://man7.org/linux/man-pages/man3/pthread_create.3.html}
-{pthread_create(3)}, které v tomto případě nemůže být přeloženo jako volání BasicNts na úrovni NTS. Volání této funkce by tedy muselo být vhodně přeloženo již na úrovni LLVM kódu.
+\href{http://man7.org/linux/man-pages/man3/pthread\_create.3.html}
+{pthread\_create(3)}, které v tomto případě nemůže být přeloženo jako volání BasicNts na úrovni NTS. Volání této funkce by tedy muselo být vhodně přeloženo již na úrovni LLVM kódu.
 
 \paragraph{Zplošťování NTS}
 Přestože je pro zplošťování NTS potřeba udělat o něco více práce, napsání odpovídajícího nástroje nám může umožnit sekvencializaci libovolného NTS. Navíc nejsme omezeni na práci s plochými NTS jako v předchozím případě. Z uvedených důvodů tato práce využívá tento přístup.
@@ -91,8 +92,140 @@ Celý problém se tedy rozpadá na několik částí. Nejprve potřebujeme přel
 
 \chapter{Použité technologie}
 \section{LLVM}
+Projekt LLVM~\cite{LLVM} je sada knihoven a nástrojů, tvořící infrastrukturu pro tvorbu překladačů. Ke své činnosti využívá mezijazyk známý jako LLVM intermediate representation~\cite{LLVM-langRef} (dále LLVM IR nebo jen IR) a sadu dobře definovaných softwarových rozhraní pro manipulaci s~ním. Práci překladače vybudovaného nad LLVM lze rozdělit do několika fází: nejprve je zpracován kód ve vstupním jazyce (proběhne lexikální, syntaktická a sémantická analýza), poté je vygenerován mezikód v~jazyce LLVM IR, nad tímto pak proběhnou zvolené optimalizace, z~výsledného IR kódu je vygenerován platformově specifický kód a~proběhne linkování. Tato architektura umožňuje využít při tvorbě překladače již jednou napsaných částí~\cite{AOSABOOK-LLVM}.
+
+\subsection{LLVM IR}
+LLVM IR je typovaný jazyk s tou vlastností, že do každého symbolu (proměnná, ukazatel, funkce, \ldots) je přiřazeno právě jednou. Tato vlastnost se nazývá static single assignment form (dále SSA). Kód je uchováván v~modulech a~rozčleněn do funkcí, které se skládají ze základních bloků. Základní blok (basic block, dále blok) je taková posloupnost instrukcí, která má jeden vstupní bod a~jeden výstupní. Zejména tedy není možné provádět skoky dovnitř bloku nebo vyskočit z~bloku jinde, než na konci. Sémantika tohoto jazyka je dobře zdokumentována, navíc probíhá práce na její formalizaci~\cite{LLVMForm}.
+
+\subsubsection{Instrukční sada}
+Instrukční sada LLVM IR je svou jednoduchostí podobná RISCovým instrukčním sadám. Instrukce jsou rozděleny na ukončovací, binární, bitové, paměťové a ostatní, přičemž pouze ukončovací instrukce mohou měnit tok řízení. Tyto instrukce vždy ukončují Basic Block a rozhodují, který blok bude vykonán po dokončení aktuálního.
+
+\subsubsection{Příklad}
+Obrázek \ref{IR-EX} zobrazuje funkci, vygenerovanou nástrojem clang~\cite{clang} z~kódu v~jazyce C. Funkce je globálním symbolem (globální symboly mají prefix \texttt{@}), má návratovou hodnotu \texttt{i32} (dvaatřicetibitové celé číslo) a~jako parametr přijímá proměnnou téhož typu. V~těle funkce se vyskytuje pouze jedna ukončovací instrukce, totiž \texttt{ret}, a~celá funkce je tak tvořena jedním basic blockem. Symbol \texttt{\%1} označuje výsledek instrukce \texttt{alloca}, což je lokální proměnná typu ukazatel na \texttt{i32} (lokální symboly mají prefix \texttt{\%}). Následuje instrukce \texttt{store}, která zkopíruje hodnotu parametru \texttt{\%x} na právě alokované paměťové místo a~nevrací žádnou hodnotu. Po načtení hodnoty z~paměti a~přičtení jedničky je vrácen výsledek poslední operace.
+
+
+\begin{figure}[h!]
+\begin{lstlisting}
+define i32 @add(i32 %x) #0 {
+%1 = alloca i32, align 4
+store i32 %x, i32* %1, align 4
+%2 = load i32* %1, align 4
+%3 = add nsw i32 1, %2
+ret i32 %3
+}
+\end{lstlisting}
+\caption{Ukázka IR kódu}
+\label{IR-EX}
+\end{figure}
+
+\subsection{Průchody}
+Průchod (orig. pass) je softwarový modul, který pracuje nad kódem v~LLVM IR. Průchody se dají rozdělit na analytické a transformační: analytické kód nijak nemodifikují, ale počítají nějakou užitečnou informaci; transformační ze vstupního kódu generují jiný. Typickým příkladem transformačního průchodu je eliminace mrtvého kódu (dead code elimination, DCE). Nástroj využívající LLVM si může zvolit, které průchody budou spuštěny; také je možné spouštět je ručně pomocí nástroje opt, dodávaného spolu s~LLVM.
+
+\subsection{Využití}
+V současné době existují nástroje pro software model checking (model checkery), které přijímají model v~jazyce LLVM IR. Mezi ně patří například Divine~\cite{BBH+13}. Využití tohoto jazyka přináší celou řadu výhod. Zaprvé, pro velké množství překladačů do LLVM IR je model checker méně závislý na programovacím jazyku, v~němž je napsaný ověřovaný software. Dále, před vlastní model checking lze zařadit již napsané průchody, které nástroji poskytnou užitečné informace nebo zrychlí model checking samotný.
+
+\subsubsection{Vztah k této práci}
+Z uvedených důvodů budeme i~v~této práci jako vstupní jazyk využívat právě LLVM IR. Nicméně protože sémantika tohoto jazyka není definovaná formálně a~v~oblasti model checkingu se obvykle pracuje s~přechodovými systémy (jako jsou Kripkeho struktury~\cite{CLARKE}), v~této práci bude výhodné pracovat s~jazykem popisujícím přechodový systém.
+
+
+\section{Posix threads}
+Jazyk LLVM IR sám neposkytuje podporu pro explicitní paralelismus. Té je možné docílit pouze použitím specializovaných knihoven. Knihovna Posix threads (zkráceně pthreads) je standardizovanou knihovnou s rozhraním pro jazyk C, která obsahuje funkce pro manipulaci s vlákny.
+
+\subsection{pthread_create()}
+Nejzajímavější funkcí z této knihovny je \texttt{pthread\_create}\cite{man-pthread-create} (viz obrázek~\ref{fig:pthread-create}), která spustí funkci, jež dostala jako jeden ze svých argumentů, v nově vytvořeném vlákně.
+
+\begin{figure}[h!]
+\begin{lstlisting}[language=C]
+int pthread_create ( pthread_t *thread,
+                     const pthread_attr_t *attr,
+                     void *(*start_routine) (void *),
+                     void *arg                        );
+\end{lstlisting}
+\label{fig:pthread-create}
+\caption{Prototyp funkce \texttt{pthread_create}}
+\end{figure}
+
 \section{NTS}
-Potřeba říci, že máme datové typy Int, Bool, Real. Int, Real jsou matematické, s neomezeným rozsahem a (u Real) s neomezenou přesností.
+Jazyk NTS (Numerical Transition Systems) je jednoduchý jazyk s~formalizovanou sémantikou~\cite{NTSref}, sloužící pro popis numerických přechodových systémů. NTS mohou modelovat libovolný software~\cite{NTSref} a~protože software je obvykle strukturován do menších částí, NTS obsahuje konstrukce pro hierarchickou i~paralelní kompozici systémů. Následuje stručný popis tohoto jazyka, zájemci o preciznější popis mohou nahlédnout do \cite{NTSref}.
+
+\subsection{BasicNts}
+Základní jednotkou NTS je BasicNts, což je samostatný přechodový systém, sestávájící z proměnných, řídících stavů a přechodů mezi nimi. Stavy mohou být označeny jako iniciální, finální a chybové. Přechody jsou tvaru $s_i \overset{R}{\rightarrow} s_j$, kde $R$ je přechodové pravidlo, strážící přechod. Přechod může být vykonán pouze v případě, že je přechodové pravidlo naplněno.
+
+\subsection{Přechodová pravidla}
+Přechodová pravidla mohou být dvojího druhu: volací pravidlo (například  $(p1',p2') = \texttt{factorize} (x)$) slouží k zavolání jiného BasicNts, předání parametrů volanému a uložení výsledků volání, zatímco formulové pravidlo (například $d' * d' = x$) obsahuje formuli predikátové logiky prvního řádu, jejíž splnění umožňuje přechod do cílového stavu přechodu. 
+
+\subsection{Formule}
+Formule mohou být kvantifikované a jsou složeny pomocí logických spojek z atomických propozic a jiných formulí, přičemž za atomické propozice jsou považovány zejména booleovské termy a výsledky porovnání termů, navíc také \texttt{havoc}. Nutno poznamenat, že ve formuli se mohou vyskytovat i hodnoty proměnných, platné v cílovém stavu. Tyto jsou označené znakem $\prime$. Jak je vidět u předchozího příkladu, je tak možné vytvořit formuli, která požaduje, aby hodnota proměnné $y$ v příštím stavu byla odmocninou hodnoty proměnné $x$ ve stavu současném.
+
+\subsection{Termy}
+Termy jsou již na syntaktické úrovni rozděleny na aritmetické a booleovské. Mezi booleovské termy patří booleovské konstanty, booleovské proměnné a jiné termy, pospojované obvyklými logickými operacemi. Obdobně, aritmetické termy jsou reálné a celočíselné konstanty a proměnné, pospojované aritmetickými operacemi z množiny $\{+, -, *, /, \% \}$. Jazyk explicitně vyžaduje, aby všechny subtermy každého termu měly stejný datový typ, jako celý term.
+
+\subsection{Typový systém}
+Jazyk NTS je vybaven třemi skalárními datovými typy: Int, Bool, Real. Datový typ \texttt{Int} reprezentuje matematické celé číslo, jeho doménou je tedy množina $\mathbb{Z}$; datový typ \texttt{Real} reprezentuje matematické reálné číslo, tedy jeho doménou je množina $\mathbb{R}$; nakonec typ \texttt{Bool} nabývá pouze hodnoty z množiny $\{ 0, 1 \}$. Jazyk dále podporuje type pole hodnot libovolného skalárního aritmetického typu.
+
+\subsection{Sémantika}
+Konfigurací systému se nazývá dvojice $\tuple{q, v}$, kde $q$ je jedním z řídících stavů a $v$ valuace proměnných (tedy funkce, která každé proměnné přiřazuje hodnotu). Přechod z~konfigurace $\tuple{q_1, v_1}$ do konfigurace $\tuple{q_2, v_2}$ je možný, pokud existuje přechodové pravidlo $q_1 \overset{F}{\rightarrow} q_2$ s~následující vlastností: formule vzniklá z~$F$ nahrazením proměnných $p$ hodnotami $v_1(p)$ a~nahrazením proměnných ve tvaru $p^\prime$ hodnotami $v_2(p)$ je tautologií. Formálnější popis je k~dispozici v~\cite{NTSref}.
+
+\subsection{Havoc}
+Havoc je speciální atomická propozice, jejíž účelem je zamezit samovolné modifikaci proměnných neuvedených ve formuli přechodového pravidla. Ve své podstatě se jedná o syntaktickou zkratku.
+\begin{equation*}
+\texttt{havoc} \left( v_1, v_2, \ldots, v_k \right) = \bigwedge_{v \in V \setminus \{ v_1, v_2, \ldots, v_k \}} v = v\prime
+\end{equation*}
+Její význam si můžeme ukázat na následujícím příkladu: uvažme přechodový systém s proměnnými $x,y$ typu int, konfiguraci $s_1 = \tuple{q_1, v_1} \land v_1(x) = 0 \land v_1(y) = 3$, konfiguraci $s_2 = \tuple{q_2, v_2} \land v_2(x) = 1 \land v_2(y) = 5$ a přechod $q_1 \overset{F}{\rightarrow} q_2$. Pokud $F \equiv x' = x + 1$, pak je možné s využitím uvedeného pravidla přejít z konfigurace $q_1$ do konfigurace $q_2$, protože formule $1 = 0 + 1$ je tautologií. Tento přechod ale v rozporu s očekáváním modifikuje proměnnou y. Naopak, pokud $F \equiv x' = x + 1 \land \texttt{havoc}(x)$, potom uvedené pravidlo nelze použít pro přechod z $q_1$ do $q_2$. Po dosazení a expandování \texttt{havoc} totiž vznikne formule $1 = 0 + 1 \land 3 = 5$, která je nesplnitelná.
+
+\subsection{Paralelismus}
+Jazyk NTS umožňuje paralelní běh libovolného konečného vláken, z nichž každé může vykonávat libovolný BasicNts. Počet vláken, stejně jako BasicNts pro každé vlákno, však musí být zvoleny před spuštěním programu a jsou také po celou dobu běhu programu stejné, zejména tedy každé vlákno běží již od začátku běhu programu. Jazyk navíc obsahuje klíčové slovo \texttt{tid}, což je aritmetický term, jehož hodnota identifikuje aktuální vlákno.
+
+Každý paralelní NTS obsahuje specifikaci ve tvaru
+\begin{lstlisting}
+instances basic_nts_1[2], basic_nts_2[3*N+4], ... , main_nts[1];
+\end{lstlisting}
+která určuje, jaké subsystémy (BasicNts) budou vykonávány v rámci jakého vlákna. Identifikátory vláken odpovídají pořadí instancí uvedených ve specifikaci. Uvedený příklad způsobí, že dvě vlákna (s \texttt{tid} 0 a 1) budou vykonávat BasicNts basic\_nts\_1, dalších několik vláken (s \texttt{tid} 2, 3, 4, \ldots 3*N+5) bude vykonávat basic\_nts\_2 a vlákno s nejvyšším \texttt{tid} bude vykonávat main\_nts.
+
+\subsection{Příklad}
+Ačkoliv jazyk neumožňuje vkládat do kódu komentáře, pro účely této práce budeme za komentář považovat obsah řádku od znaku '\#' až do konce řádku. Obrázek \ref{NTSL-EX} obsahuje příklad paralelního přechodového systému.
+
+\todo{Dodělat příklad. Konzument může třeba počítat součet nebo zlatý řez.}
+\begin{figure}[h!]
+\begin{lstlisting}
+
+G : int;
+l : bool;
+init G = 0 && l = false;
+instances producent[1], consument[1];
+producent {
+    initial si;
+    i : integer;
+    
+    si -> sl { i' = 0 && havoc(i) }
+
+}
+add {
+    # Predpokladame x mezi INT_MIN a INT_MAX
+    in x : int;
+    out rv : int;
+    # Pocatecni stav
+    initial si;
+    # Koncovy stav
+    final sf;
+    # Promenna alokovana funkci alloca
+    t1 : int;
+    # Promenne %2 a %3
+    t2,t3 : int;
+    # Pocatecni store
+    si -> s1 {t1' = x and havoc(t1)}
+    # Instrukce load
+    s1 -> s2 {t2' = t1 and havoc(t2)}
+    # Pricitani je slozitejsi, 
+    s2 -> s3 {t2 < INT_MAX and t3' = t2 + 1 and havoc(t3)}
+    s2 -> s3 {t2 = INT_MAX and t3' = INT_MIN and havoc(t3)}
+    # Instrukce ret
+    s3 -> sf {rv' = t3 and havoc(rv)}
+}
+\end{lstlisting}
+\caption{Příklad kódu v jazyce NTL}
+\label{NTSL-EX}
+\end{figure}
 
 \section{Partial Order Reduction}
 Partial Order Reduction je technika pro redukci stavového prostoru (paralelních) programů, která využívá komutativity paralelně vykonávaných přechodů. Pokud lze efektivně ověřit, že stav programu po vykonání přechodů $\texttt{t}_1$ a $t_2$ nezávisí na jejich pořadí a ověřovaná vlastnost není citlivá na jednotlivé přechody, není třeba uvažovat některé možné běhy. Technika použitá v této práci vychází z techniky popsané v \cite{CLARKE}.
@@ -301,7 +434,8 @@ V jazyce LLVM IR existuje instruce Phi, reprezentující $\Phi$ uzel \todo{znám
 
 Jazyky LLVM IR a NTS implementují paralelismus velice odlišně. Během návrhu překladu jsme preferovali pokrytí možných použití pthreads v LLVM před jednoduchostí výsledného NTS.
 
-\subsubsection{LLVM, pthreads}Jazyk LLVM IR sám neposkytuje podporu pro explicitní paralelismus. Proto podporujeme posixovou knihovnu pro vlákna, pthreads (resp. její část). Nejzajímavější funkcí z této knihovny je pthread\_create, která jako jeden ze svých argumentů přijímá pointer na funkci, jež následně spustí v novém vytvořeném vlákně.Volání této funkce se může ve zdrojovém programu vyskytnout kdekoliv, a na umístění a četnost těchto výskytů neklademe žádná omezení. Omezujeme ale možnosti použití této funkce, a to následujícím způsobem:
+\subsubsection{LLVM, pthreads}
+Volání této funkce se může ve zdrojovém programu vyskytnout kdekoliv, a na umístění a četnost těchto výskytů neklademe žádná omezení. Omezujeme ale možnosti použití této funkce, a to následujícím způsobem:
 
 \begin{enumerate}
 \item Argument parametru start\_routine musí být přímo funkce, nikoliv jiný funkční ukazatel.
@@ -311,21 +445,9 @@ Jazyky LLVM IR a NTS implementují paralelismus velice odlišně. Během návrhu
 \item Návratová hodnota této funkce musí být vždy null.
 \end{enumerate}
 
-\begin{figure}[h!]
-\begin{lstlisting}[language=C]
-int pthread_create ( pthread_t *thread,
-                     const pthread_attr_t *attr,
-                     void *(*start_routine) (void *),
-                     void *arg                        );
-\end{lstlisting}
-\end{figure}
 
 \subsubsection{NTS}
-Jazyk NTS řeší paralelismus odlišným způsobem. Počet vláken je po celou dobu běhu programu stejný, tedy každé vlákno běží již od začátku. Každý paralelní NTS obsahuje řádek \todo{ne nutně řádek} ve tvaru
-\begin{lstlisting}
-instances basic_nts_1[2], basic_nts_2[3*N+4], ... , main_nts[1];
-\end{lstlisting}
-který určuje, jaké vlákno bude vykonávat jaký přechodový (sub)systém (BasicNts). Uvedený příklad specifikuje, že dvě vlákna (s id 0 a 1) budou vykonávat BasicNts basic\_nts\_1, dalších několik vláken (s id 2, 3, 4, \ldots 3*N+5) bude vykonávat basic\_nts\_2 a vlákno s nejvyšším id bude vykonávat main\_nts.
+Jazyk NTS řeší paralelismus odlišným způsobem. 
 
 \subsubsection{Překlad}
 V případě paralelního LLVM překládací program vygeneruje NTS, jež vytváří 1 hlavní vlákno a N vláken pracovních. Každé pracovní vlákno má přiřazeno stav a v každém čase se nachází buď ve stavu nečinném, nebo ve stavu činném. Protože na začátku běhu programu v jazyce LLVM IR je spuštěno pouze jedno vlákno, zatímco v přechodovém systému NTS jsou spuštěna všechna vlákna, chceme, aby běžící pracovní vlákna neměla žádný \textit{efekt}. Tedy pracovní vlákno bude ve výchozím stavu v režimu nečinném. Veškerá volání funkcí \texttt{pthread\_create} nahradíme kódem, který způsobí, že se nějaké nečinné pracovní vlákno stane činným a začne vykonávat kód odpovídající funkce. Po ukončení běhu této funkce vlákno opět přejde do stavu nečinnosti a je tak možné ho znovu využít.
@@ -509,7 +631,7 @@ b) Umět rozpoznat původně existující struktury i v přeloženém a zplacat�
 \chapter{Implementace libNTS}
 \section{Motivace}
 Proc jsem nepouzil stavajici knihovny.
-\section{Omezeni}
+\section{Omezení}
 Zatím nepodporuji složitější operace s poli. Také nechápu, jak pracovat s parametry (par).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
