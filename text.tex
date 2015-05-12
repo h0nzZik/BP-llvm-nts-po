@@ -33,38 +33,162 @@
 
 \begin{document}
 
-\chapter{Cíl práce}
+\chapter{Úvod}
+\section{Motivace}
 Exploze stavového prostoru při model checkingu, Partial Order Redukce to řeší,
 LLVM model checking je super a chceme tam POR.
 
 To, co chceme, je vygenerovaný NTS, který není paralelní. Tedy výstupem redukce
 není explicitní stavový prostor.
 
+\section{Přístup}
+Cílem této práce tedy je vytvořit ze vstupního programu v jazyce LLVM IR, jež využívá posixová vlákna, odpovídající sekvenční přechodový systém v jazyce NTS. Tuto úlohu je možné přirozeně rozdělit na dvě části, a to na
+\begin{enumerate}
+\item přirozený překlad programu z LLVM IR do NTS se zachováním paralelismu (část dále označovaná jako překlad), a
+\item převod paralelního programu v jazyce NTS na sekvenční program (část dále označovaná jako sekvencializace).
+\end{enumerate}
+
+Tyto dvě části jsou poměrně nezávislé a mohou být implementovány jako rozdílné nástroje, pracující nad společnou knihovnou. Rozdělením navíc získáváme možnost ověřovat vlastnosti sekvenčních programů v jazyce LLVM IR nástrojem, který rozumí jazyku NTS \todo{Až na uvedená rozšíření. Nechtěli jsme mít možnost použít unbounded integery?}.
+
+%Velký obraz - jak se vypořádat s funkčními voláními? Jaké jsem měl možnosti?
+
+%Výsledkem trojice: llvm2nts, inliner, vlastní POR. Všechno pracuje nad knihovnou pro paměťovou
+%reprezentaci NTS. Related work: Petrův parser.
+
+%Všechno ve formě knihovny - jednoduché rozhraní, snadno použitelné.
+
+%BTW: NTS je 'ten' - system
+\subsection{Funkční volání} %trochu nevhodný název pro sekci "Velký obraz"
+
+Chceme tedy z paralelního NTS, který vznikl překladem z LLVM IR, učinit sekvenční. Pokud o vstupním paralelním NTS nebudeme nic předpokládat, nástroj pro sekvencializaci bude muset umět korektně zacházet s funkčními voláními, protože ta mohou být součástí NTS. To zejména znamená, že nástroj si bude muset pro každý stav výstupního systému udržovat přehled o tom, jaké funkce jsou v jakém vlákně aktivní. Implementace takového nástroje nemusí být snadná, proto jsme učinili následující rozhodnutí:
+
+% tohle bych chtel v sedem ramecku, podobne jako byvaji citace nebo theoremy
+\begin{decision}
+Nástroj pro sekvencializaci předpokládá, že vstupní paralelní systém neobsahuje funkční volání, tedy (v termínech) NTS není hierarchický. Takové NTS budeme dále označovat jako "ploché".
+\end{decision}
+
+Většina skutečných programů v jazyce LLVM IR ovšem obsahují funkční volání, a rádi bychom takové programy podporovali. Nabízejí se dvě možnosti, jak takovou podporu zajistit. První spočívá v tom, že paralelní program v jazyce LLVM IR přeložíme na paralelní a (potenciálně) hierarchický přechodový systém v jazyce NTS, který následně převedeme na ekvivalentní paralelní plochý přechodový systém. Alternativní možností je nejprve odstranit funkční volání z paralelního LLVM IR programu a následně tento plochý program převést na plochý paralelní přechodový systém.
+
+Tak či onak, programy s rekurzivním voláním nebudou podporovány.
+
+\paragraph{Zplošťování LLVM}
+Zploštění programu v LLVM IR nevyžaduje téměř žádnou další práci, protože již na tuto úlohu existuje llvm průchod. Jmenuje se
+\href{http://llvm.org/docs/Passes.html#inline-function-integration-inlining}
+{inline} a je součástí projektu LLVM. Nicméně nástroj pro překlad LLVM IR na NTS musí umět korektně přeložit volání funkce
+\href{http://man7.org/linux/man-pages/man3/pthread_create.3.html}
+{pthread_create(3)}, které v tomto případě nemůže být přeloženo jako volání BasicNts na úrovni NTS. Volání této funkce by tedy muselo být vhodně přeloženo již na úrovni LLVM kódu.
+
+\paragraph{Zplošťování NTS}
+Přestože je pro zplošťování NTS potřeba udělat o něco více práce, napsání odpovídajícího nástroje nám může umožnit sekvencializaci libovolného NTS. Navíc nejsme omezeni na práci s plochými NTS jako v předchozím případě. Z uvedených důvodů tato práce využívá tento přístup.
+
+\subsection{Architektura}
+Celý problém se tedy rozpadá na několik částí. Nejprve potřebujeme přeložit program z jazyka LLVM IR do formalizmu NTS, poté z přeloženého programu odstranit volání subsystémů, plochý program sekvencializovat s využitím partial order redukce a nakonec ho uložit do souboru. Pro spolupráci těchto částí je třeba mít vybudovanou vhodnou paměťovou reprezentaci programu v jazyce NTS. Existence parseru by byla užitečná (zejména pro testování), ale není nutná.
+
+\section{Popis následujících kapitol}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 \chapter{Použité technologie}
-Proč volíme právě NTS? Jakou podmnožinu těch jazyků podporuji?
 \section{LLVM}
-\subsection{Typový systém}
-\label{subsec:llvm-type-system}
+\section{NTS}
+Potřeba říci, že máme datové typy Int, Bool, Real. Int, Real jsou matematické, s neomezeným rozsahem a (u Real) s neomezenou přesností.
 
-\subsection{Omezení}
+\section{Partial Order Reduction}
+Partial Order Reduction je technika pro redukci stavového prostoru (paralelních) programů, která využívá komutativity paralelně vykonávaných přechodů. Pokud lze efektivně ověřit, že stav programu po vykonání přechodů $\texttt{t}_1$ a $t_2$ nezávisí na jejich pořadí a ověřovaná vlastnost není citlivá na jednotlivé přechody, není třeba uvažovat některé možné běhy. Technika použitá v této práci vychází z techniky popsané v \cite{CLARKE}.
 
-\subsubsection{Pole}
+\subsection{Nezávislost a komutativita přechodů}
+Na rozdíl od \cite{CLARKE} nevyžadujeme, aby přechodová pravidla byla (datově) deterministická. Všechny přechody v NTS již jsou kontrolně deterministické. Nezávislost přechodů tedy definujeme mírně odlišně.
+\begin{definition}
+Binární relace $I$ na přechodech paralelního NTS nazýváme relací nezávislosti, pokud je symetrická, antireflexivní a splňuje následující požadavek:
+Pro libovolné přechody $(t_1, t_2) \in I$ a libovolné stavy (konfigurace v NTS) $s_1, s_2, s_3$ takové, že  $s_1 \xrightarrow{t_1} s_2 \xrightarrow{t_2} s_3$ existuje stav $s_2'$ takový, že $s_1 \xrightarrow{t_2} s_2' \xrightarrow{t1} s_3$.
+\end{definition}
+Pro NTS bez nedeterministických přechodů je tato definice shodná s definicí v \cite{CLARKE}.
+
+\begin{definition}
+Přechod $t$ je povolený ve stavu (konfiguraci) $s$ (píšeme $t \in \texttt{enabled}(s)$ právě tehdy, když existuje stav $s'$ tak že $s \xrightarrow{t} s'$
+\end{definition}
+Je zřejmé, že pokud pro stav $s = \tuple(q, v)$ a přechod $t$ platí $t \in \texttt{enabled}(s)$, pak $t \in \texttt{outgoing}(q)$. Stavy takové, že vybraný $\texttt{ample}(s) = \texttt{enabled}(s)$, označujeme jako plně expandované.
+
+Technika, použitá v \cite{CLARKE}, tedy partial order reduction s využitím dostatečných (ample) množin, spočívá v tom, že pro každý stav (konfiguraci) paralelního systému je spočítána množina přechodů $\texttt{ample}(s) \subseteq \texttt{enabled}(s)$, která má tu vlastnost, že přechody mimo $\texttt{ample}(s)$ nejsou "důležité". Formálněji řečeno je třeba, aby ke každé cestě v úplném explicitním přechodovém grafu paralelního systému existovala (určitým způsobem) ekvivalentní cesta v tomtéž grafu, která nevyužívá žádné přechody mimo \texttt{ample}. Při konstrukci odpovídajícího sekvenčního systému pak není třeba uvažovat přechody mimo \texttt{ample}, což zmenšuje velikost výsledného sekvenčního systému.
+
+\subsection{Nutné podmínky}
+Kniha \cite{CLARKE} uvádí několik podmínek, postačují pro zachování korektnosti. Pro připomenutí, ta kniha pracuje pouze s deterministickými přechody. 
+
+\begin{enumerate}
+\item[C0] $\texttt{ample}(s) = \emptyset \Rightarrow \texttt{enabled}(s) = \emptyset$
+\item[C1] Každá cesta v úplném explicitním přechodovém grafu paralelního systému, začínající ve stavu $s$, má následující vlastnost: pokud přechod $t_2$, který se vyskytuje po cestě, závisí na nějakém přechodu $t_1 \in \texttt{ample}(s)$, pak se před jeho výskytem vyskytuje nějaký přechod $t_1' \in \texttt{ample}(s)$.
+\item[C2] Pokud $s$ není plně expandovaný, pak každý přechod z $\texttt{ample}(s)$ je neviditelný \todo{zadefinovat}.
+\item[C3] Nesmí existovat cyklus, který obsahuje přechod povolený v některém z jeho stavů a neobsažený v žádném z \texttt{ample} stavů cyklu.
+\end{enumerate}
+
+
+\subsection{Jednoduchá heuristika}
+\subsubsection{Nezávislost}
+Definice relace nezávislosti umožňuje jistou flexibilitu při výběru vhodné relace. Za nezávislé budeme považovat ty páry přechodů $(t_1, t_2)$, které splňují obě následující podmínky:
+\begin{itemize}
+\item Přechody $t_1$ a $t_2$ patří ke dvěma různým vláknům.
+\item Neexistuje proměnná, sdílená oběma přechody $t_1$ i $t_2$ a modifikovaná alespoň jedním z nich.
+\end{itemize}
+
+
+\subsubsection{Ample sety}
+Pro řídící stav $q_0 = \tuple{q_{0,0}, \ldots, q_{0,k-1}}$ spočítáme $A(q_0)$ následujícím způsobem. Pro každé $0 \leq i < k$ zkusíme položit $A(q_0) = \texttt{outgoing}(q_{0,i})$. Pokud zkoušená množina splňuje podmínky C0 až C3, použijeme jí. Pokud žádná z vyzkoušených množin není použitelná, položíme $A(q_0) = \texttt{outgoing}(q_0)$.
+
+Porušení podmínky C1 \label{subsec:c1-violation} znamená, že v úplném explicitním přechodovém grafu existuje posloupnost $s_0 \xrightarrow{\alpha_0} \ldots \xrightarrow{\alpha_{m-1}} s_m \xrightarrow{\beta} s_{m+1}$, $s_j = (q_j, v_j)$ taková, že $\beta \in \texttt{enabled}(s_l)$, $\beta$ je závislý na nějakém přechodu ve zvoleném $\texttt{ample}(s_0)$ a všechny $\alpha_j$ jsou nezávislé na všech přechodech v $\texttt{ample}(s_0)$. Potom, jak uvádí \cite{CLARKE}, mohou nastat dvě situace.
+
+\begin{itemize}
+\item Přechod $\beta$ pochází z vlákna $i$ (tedy $\beta \in \texttt{outgoing}(q_{m,i})$).  Protože $\alpha_j$ jsou nezávislé na $\texttt{ample}(s_0)$, musí pocházet z jiného vlákna než $i$, tedy $q_{0,i} = q_{m,i}$. Protože $\beta \not \in \texttt{ample}(s_0)$, tak $\beta \not \in \texttt{enabled}(s_0)$. V tom případě se ale stavy $s_0$ a $s_m$ liší ve valuaci některých globálních proměnných, které jsou používány přechodem $\beta$, a tedy nějaké vlákno s $tid \neq i$ obsahuje přechod, modifikující proměnnou, která je používána přechodem $\beta$.
+
+\item Pokud $\beta \not \in \texttt{outgoing}(q_{m,i})$, tedy přechod $\beta$ pochází z vlákna jiného než $i$, nějaké jiné vlákno než $i$ obsahuje přechod, který je závislý na nějakém přechodu z $\texttt{ample}(s_0)$. 
+\end{itemize}
+
+V obou případech tedy musí nějaké jiné vlákno obsahovat přechod, který s nějakým přechodem z $\texttt{ample}(s_0)$ sdílí proměnnou, která je modifikována jedním z nich. To se dá snadno ověřit, pokud si například předem pro každé vlákno množinu proměnných v něm použitých.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+\chapter{Překlad LLVM na NTS}
+\section{Omezení LLVM}
+
+\subsection{Pole}
 Nepodporuji (zatím). Přidat podporů některých operací nad poli by ale nemusel být problém
-\subsubsection{Pointery}
+\subsection{Pointery}
 Nestaráme se o pointery
 \paragraph{Ale s proměnnými se pracuje zkrze pointery!}
 
-\subsubsection{Instrukce}
+\subsection{Instrukce}
 Také nepodporuji znaménkovou aritmetiku a hromadu instrukcí. Například znaménkové přetečení při add neošetřuji, přestože je to principiálně možné. Vede to k složitým formulím. Pokud ale bude překladová utilita vyvíjená dále, je to jedna z věcí, která by mohla být volitelná (tedy jestli vracet nedefinovaný výsledek nebo přejít do err stavu nebo pokračovat jako nic). S tím souvisí Poison a Undef values.
 
+\subsection{Znaménkovost}
+%\subsubsection{Vyjádření v neznaménkové aritmetice}
+Jak číselné datové typy v jazyce LLVM IR, tak přidaný BitVector typ v jazyce NTS jsou bezznaménkové. Nicméně některé LLVM instrukce (například ICMP) mohou interpretovat použité proměnné znaménkově. Přestože je principiálně možné vyjádřit sémantiku znaménkových operací pomocí bezznamnékové aritmetiky \todo{ukázat jak na to}, výsledné formule by byly složitější. \todo{zminit semantiku operaci nad BitVector}
+\begin{figure}[h!]
+\begin{lstlisting}
+%b = icmp slt i8 %x, 10
+\end{lstlisting}
+\end{figure}
+Tato instrukce přiřadí do proměnné 'b' hodnotu 1 právě pokud x je znaménkově menší (signed less then, slt) než hodnota 10, tedy právě pokud x bude mít hodnotu v rozsahu -128 až 9. Tento rozsah, vyjádřený v dvojkovém doplňkovém kódu \todo{Někde zmínit, že llvm ir využívá právě dvojkový doplněk}, odpovídá neznaménkovým hodnotám v rozsahu 0 \ldots 9 nebo 128 \ldots 255. 
 
-\section{NTS}
+\begin{figure}[h!]
+\begin{lstlisting}
+%b = icmp slt i8 %x, %y
+\end{lstlisting}
+\end{figure}
 
-\subsection{Popis originální verze}
-Potřeba říci, že máme datové typy Int, Bool, Real. Int, Real jsou matematické, s neomezeným rozsahem a (u Real) s neomezenou přesností.
+Pokud jsou ovšem obě hodnoty neznámé, porovnání je obtížnější. Výsledkem operace bude 1, právě pokud bude splněna jedna z následujících podmínek:
 
-\subsection{Rozšíření}
+\begin{enumerate}
+\item Hodnota proměnné x je záporná a hodnota proměnné y je kladná, tedy v unsigned aritmetice x > 127 a y <= 127.
+\item Obě proměnné mají shodné znaménko a zároveň x je neznaménkově menší než y.
+\end{enumerate}
 
+Jsou i jiné způsoby, jak v neznaménkové aritmetice vyjádřit chování této instrukce, ale nenašel jsem žádný elegantnější nebo jednodušší. Z tohoto důvodu současná verze překládacího nástroje nepodporuje překlad znaménkových operací do aritmetiky neznaménkových bitvektorů.
+
+
+\section{Rozšíření NTS}
+
+\subsection{Typ BitVector}
 Jak můžeme vidět v předchozích částech, typový systém jazyka NTS se od typového systému LLVM IR 
 %\ref{subsec:llvm-type-system}
 v mnohém liší. Zatímco v LLVM IR mohou stejný datový typ (Integer type, například i8) využívat jak aritmetické instrukce (binary instructions), tak bitové logické instrukce (bitwise binary instructions), jazyk NTS již na úrovni syntaxe podporuje logické operace pouze nad termy typu Bool. Pro překlad LLVM IR do NTS je tedy nezbytné cílový jazyk vhodným způsobem rozšířit. Možností je více:
@@ -117,7 +241,7 @@ Původní datový typ Bool chápeme jako zkratku za typ BitVector<1>
 % to ale neni 100% podporovane. Nebo ano?
 %TODO gramatika muze byt v plovoucim prostredi
 
-\subsubsection{Typovací pravidla}
+\subsection{Typovací pravidla}
 Abychom zajistili, že syntakticky stejný výraz může být typu BitVector nebo Int, definujeme typovou třídu Integral se členy BitVector<k> a Int. Typ výrazu je definován rekurzivně
 
 \begin{enumerate}
@@ -153,67 +277,7 @@ Tedy přidáváme datový typ BitVector, typové třídy a implicitní typová k
 Btw můžeme využívat anotace. Zatím je využíváme jenom trochu, ale dají se o nich vkládat
 i nějaké informace z LLVM nebo další postřehy.
 
-\subsection{Omezení}
-Zatím nepodporuji složitější operace s poli. Také nechápu, jak pracovat s parametry (par).
-
-\subsubsection{Pole}
-
-\chapter{Jak na to?}
-
-\section{Použitá terminologie}
-
-\section{Velký obraz}
-Cílem této práce tedy je vytvořit ze vstupního programu v jazyce LLVM IR, jež využívá posixová vlákna, odpovídající sekvenční přechodový systém v jazyce NTS. Tuto úlohu je možné přirozeně rozdělit na dvě části, a to na
-\begin{enumerate}
-\item přirozený překlad programu z LLVM IR do NTS se zachováním paralelismu (část dále označovaná jako překlad), a
-\item převod paralelního programu v jazyce NTS na sekvenční program (část dále označovaná jako sekvencializace).
-\end{enumerate}
-
-Tyto dvě části jsou poměrně nezávislé a mohou být implementovány jako rozdílné nástroje, pracující nad společnou knihovnou. Rozdělením navíc získáváme možnost ověřovat vlastnosti sekvenčních programů v jazyce LLVM IR nástrojem, který rozumí jazyku NTS \todo{Až na uvedená rozšíření. Nechtěli jsme mít možnost použít unbounded integery?}.
-
-%Velký obraz - jak se vypořádat s funkčními voláními? Jaké jsem měl možnosti?
-
-%Výsledkem trojice: llvm2nts, inliner, vlastní POR. Všechno pracuje nad knihovnou pro paměťovou
-%reprezentaci NTS. Related work: Petrův parser.
-
-%Všechno ve formě knihovny - jednoduché rozhraní, snadno použitelné.
-
-%BTW: NTS je 'ten' - system
-\subsection{Funkční volání} %trochu nevhodný název pro sekci "Velký obraz"
-
-Chceme tedy z paralelního NTS, který vznikl překladem z LLVM IR, učinit sekvenční. Pokud o vstupním paralelním NTS nebudeme nic předpokládat, nástroj pro sekvencializaci bude muset umět korektně zacházet s funkčními voláními, protože ta mohou být součástí NTS. To zejména znamená, že nástroj si bude muset pro každý stav výstupního systému udržovat přehled o tom, jaké funkce jsou v jakém vlákně aktivní. Implementace takového nástroje nemusí být snadná, proto jsme učinili následující rozhodnutí:
-
-% tohle bych chtel v sedem ramecku, podobne jako byvaji citace nebo theoremy
-\begin{decision}
-Nástroj pro sekvencializaci předpokládá, že vstupní paralelní systém neobsahuje funkční volání, tedy (v termínech) NTS není hierarchický. Takové NTS budeme dále označovat jako "ploché".
-\end{decision}
-
-Většina skutečných programů v jazyce LLVM IR ovšem obsahují funkční volání, a rádi bychom takové programy podporovali. Nabízejí se dvě možnosti, jak takovou podporu zajistit. První spočívá v tom, že paralelní program v jazyce LLVM IR přeložíme na paralelní a (potenciálně) hierarchický přechodový systém v jazyce NTS, který následně převedeme na ekvivalentní paralelní plochý přechodový systém. Alternativní možností je nejprve odstranit funkční volání z paralelního LLVM IR programu a následně tento plochý program převést na plochý paralelní přechodový systém.
-
-Tak či onak, programy s rekurzivním voláním nebudou podporovány.
-
-\paragraph{Zplošťování LLVM}
-Zploštění programu v LLVM IR nevyžaduje téměř žádnou další práci, protože již na tuto úlohu existuje llvm průchod. Jmenuje se
-\href{http://llvm.org/docs/Passes.html#inline-function-integration-inlining}
-{inline} a je součástí projektu LLVM. Nicméně nástroj pro překlad LLVM IR na NTS musí umět korektně přeložit volání funkce
-\href{http://man7.org/linux/man-pages/man3/pthread_create.3.html}
-{pthread_create(3)}, které v tomto případě nemůže být přeloženo jako volání BasicNts na úrovni NTS. Volání této funkce by tedy muselo být vhodně přeloženo již na úrovni LLVM kódu.
-
-\paragraph{Zplošťování NTS}
-Přestože je pro zplošťování NTS potřeba udělat o něco více práce, napsání odpovídajícího nástroje nám může umožnit sekvencializaci libovolného NTS. Navíc nejsme omezeni na práci s plochými NTS jako v předchozím případě. Z uvedených důvodů tato práce využívá tento přístup.
-
-\subsection{Architektura}
-Celý problém se tedy rozpadá na několik částí. Nejprve potřebujeme přeložit program z jazyka LLVM IR do formalizmu NTS, poté z přeloženého programu odstranit volání subsystémů, plochý program sekvencializovat s využitím partial order redukce a nakonec ho uložit do souboru. Pro spolupráci těchto částí je třeba mít vybudovanou vhodnou paměťovou reprezentaci programu v jazyce NTS. Existence parseru by byla užitečná (zejména pro testování), ale není nutná.
-
-%Přestože existuje
-
-
-\section{Architektura libNTS}
-- inspirováno LLVM
-\todo{Existuje Javovská implementace NTS}
-
-\section{Překlad llvm na nts}
-Btw nepatří rozhodnutí o omezení vstupního jazyka sem?
+\section{Vlastni preklad}
 
 \subsection{Funkce}
 Jak jazyk NTS, tak LLVM IR podporují určitou formu hierarchického členění programu na podprogramy. Zatímco u LLVM IR je základní jednotkou tohoto členění funkce, v případě jazyka NTS jde o BasicNts, který reprezentuje jednoduchý přechodový systém. Jak funkce, tak BasicNts mohou mít libovolný počet (vstupních) parametrů zvoleného typu, ašak zatímco funkce může vracet nejvýše jednu hodnotu, BasicNts může definovat libovolný počet výstupních parametrů. Funkce i BasicNts navíc mohou definovat lokální proměnné. Vzhledem k těmto podobnostem je celkem přirozené překládat funkce z LLVM IR na BasicNts.
@@ -227,30 +291,7 @@ Nicméně poslední instrukce v základním bloku může změnit tok řízení, 
 \todo{Zmínit SSA}
 V jazyce LLVM IR existuje instruce Phi, reprezentující $\Phi$ uzel \todo{známe z teorie překladačů?} v SSA jazyce. Tato instrukce se nachází pouze na začátku základního bloku a jeí výsledek je závislý na předchozím dokončeném základním bloku. Z tohoto důvodu jsou při překladu funkce základní bloky očíslovány a každá terminující instrukce ukládá číslo svého základního bloku do speciální proměnné. Samotná phi instrukce však v době psaní tohoto textu není v překládacím nástroji implementována.
 
-\subsection{Znaménkovost}
-%\subsubsection{Vyjádření v neznaménkové aritmetice}
-Jak číselné datové typy v jazyce LLVM IR, tak přidaný BitVector typ v jazyce NTS jsou bezznaménkové. Nicméně některé LLVM instrukce (například ICMP) mohou interpretovat použité proměnné znaménkově. Přestože je principiálně možné vyjádřit sémantiku znaménkových operací pomocí bezznamnékové aritmetiky \todo{ukázat jak na to}, výsledné formule by byly složitější. \todo{zminit semantiku operaci nad BitVector}
-\begin{figure}[h!]
-\begin{lstlisting}
-%b = icmp slt i8 %x, 10
-\end{lstlisting}
-\end{figure}
-Tato instrukce přiřadí do proměnné 'b' hodnotu 1 právě pokud x je znaménkově menší (signed less then, slt) než hodnota 10, tedy právě pokud x bude mít hodnotu v rozsahu -128 až 9. Tento rozsah, vyjádřený v dvojkovém doplňkovém kódu \todo{Někde zmínit, že llvm ir využívá právě dvojkový doplněk}, odpovídá neznaménkovým hodnotám v rozsahu 0 \ldots 9 nebo 128 \ldots 255. 
 
-\begin{figure}[h!]
-\begin{lstlisting}
-%b = icmp slt i8 %x, %y
-\end{lstlisting}
-\end{figure}
-
-Pokud jsou ovšem obě hodnoty neznámé, porovnání je obtížnější. Výsledkem operace bude 1, právě pokud bude splněna jedna z následujících podmínek:
-
-\begin{enumerate}
-\item Hodnota proměnné x je záporná a hodnota proměnné y je kladná, tedy v unsigned aritmetice x > 127 a y <= 127.
-\item Obě proměnné mají shodné znaménko a zároveň x je neznaménkově menší než y.
-\end{enumerate}
-
-Jsou i jiné způsoby, jak v neznaménkové aritmetice vyjádřit chování této instrukce, ale nenašel jsem žádný elegantnější nebo jednodušší. Z tohoto důvodu současná verze překládacího nástroje nepodporuje překlad znaménkových operací do aritmetiky neznaménkových bitvektorů.
 
 %\subsubsection{Znaménkové datové typy v NTS}
 
@@ -291,14 +332,11 @@ V případě paralelního LLVM překládací program vygeneruje NTS, jež vytvá
 
 \todo{Vložit někam výsledný NTS kód}
 
-\paragraph{Implementace}
-%Překládací nástroj najde v IR kódu všechny funkce, které jsou použity jako argument funkce \texttt{pthread_create} a očísluje je. Následně vygeneruje BasicNts \texttt{thread_pool_routine} a přeloží do NTS.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+\chapter{Statická Partial Order redukce}
 
-\section{Inlining}
-Jo teda nepodporuju rekurzi, a proto si můžu dovolit to, co dělám v inlineru - prostě tak dlouho zainlinovávám jednotlivé BasicNts, až mi nezůstané žádné volání.
-
-\section{Sekvencializace}
+\section{Obecně k sekvencializaci}
 V rámci zachování jednoduchosti v této části textu používáme o něco jednodušší definice než v \cite{NTSref}, zejména vypouštíme definici valuace proměnných.
 
 \begin{definition}
@@ -327,36 +365,9 @@ s_1 \xrightarrow{t_1} s_2 \land \ldots \land s_{m-1} \xrightarrow{t_{m-1}} s_m
 \end{equation*}
 \end{definition}
 
-\subsection{Jednoduchá sekvencializace}
+\section{Použití POR bez znalosti dat - statické}
+Navazuje na POR vysvětlenou dříve. Jak tedy POR upravit tak, aby fungovalo staticky.
 
-
-\subsection{Partial Order Reduction}
-Partial Order Reduction je technika pro redukci stavového prostoru (paralelních) programů, která využívá komutativity paralelně vykonávaných přechodů. Pokud lze efektivně ověřit, že stav programu po vykonání přechodů $\texttt{t}_1$ a $t_2$ nezávisí na jejich pořadí a ověřovaná vlastnost není citlivá na jednotlivé přechody, není třeba uvažovat některé možné běhy. Technika použitá v této práci vychází z techniky popsané v \cite{CLARKE}.
-
-\subsubsection{Nezávislost a komutativita přechodů}
-Na rozdíl od \cite{CLARKE} nevyžadujeme, aby přechodová pravidla byla (datově) deterministická. Všechny přechody v NTS již jsou kontrolně deterministické. Nezávislost přechodů tedy definujeme mírně odlišně.
-\begin{definition}
-Binární relace $I$ na přechodech paralelního NTS nazýváme relací nezávislosti, pokud je symetrická, antireflexivní a splňuje následující požadavek:
-Pro libovolné přechody $(t_1, t_2) \in I$ a libovolné stavy (konfigurace v NTS) $s_1, s_2, s_3$ takové, že  $s_1 \xrightarrow{t_1} s_2 \xrightarrow{t_2} s_3$ existuje stav $s_2'$ takový, že $s_1 \xrightarrow{t_2} s_2' \xrightarrow{t1} s_3$.
-\end{definition}
-Pro NTS bez nedeterministických přechodů je tato definice shodná s definicí v \cite{CLARKE}.
-
-\begin{definition}
-Přechod $t$ je povolený ve stavu (konfiguraci) $s$ (píšeme $t \in \texttt{enabled}(s)$ právě tehdy, když existuje stav $s'$ tak že $s \xrightarrow{t} s'$
-\end{definition}
-Je zřejmé, že pokud pro stav $s = \tuple(q, v)$ a přechod $t$ platí $t \in \texttt{enabled}(s)$, pak $t \in \texttt{outgoing}(q)$. Stavy takové, že vybraný $\texttt{ample}(s) = \texttt{enabled}(s)$, označujeme jako plně expandované.
-
-Technika, použitá v \cite{CLARKE}, tedy partial order reduction s využitím dostatečných (ample) množin, spočívá v tom, že pro každý stav (konfiguraci) paralelního systému je spočítána množina přechodů $\texttt{ample}(s) \subseteq \texttt{enabled}(s)$, která má tu vlastnost, že přechody mimo $\texttt{ample}(s)$ nejsou "důležité". Formálněji řečeno je třeba, aby ke každé cestě v úplném explicitním přechodovém grafu paralelního systému existovala (určitým způsobem) ekvivalentní cesta v tomtéž grafu, která nevyužívá žádné přechody mimo \texttt{ample}. Při konstrukci odpovídajícího sekvenčního systému pak není třeba uvažovat přechody mimo \texttt{ample}, což zmenšuje velikost výsledného sekvenčního systému.
-
-\subsubsection{Nutné podmínky}
-Kniha \cite{CLARKE} uvádí několik podmínek, postačují pro zachování korektnosti. Pro připomenutí, ta kniha pracuje pouze s deterministickými přechody. 
-
-\begin{enumerate}
-\item[C0] $\texttt{ample}(s) = \emptyset \Rightarrow \texttt{enabled}(s) = \emptyset$
-\item[C1] Každá cesta v úplném explicitním přechodovém grafu paralelního systému, začínající ve stavu $s$, má následující vlastnost: pokud přechod $t_2$, který se vyskytuje po cestě, závisí na nějakém přechodu $t_1 \in \texttt{ample}(s)$, pak se před jeho výskytem vyskytuje nějaký přechod $t_1' \in \texttt{ample}(s)$.
-\item[C2] Pokud $s$ není plně expandovaný, pak každý přechod z $\texttt{ample}(s)$ je neviditelný \todo{zadefinovat}.
-\item[C3] Nesmí existovat cyklus, který obsahuje přechod povolený v některém z jeho stavů a neobsažený v žádném z \texttt{ample} stavů cyklu.
-\end{enumerate}
 
 Uvedené podmínky se vztahují k explicitnímu CFG, zatímco náš nástroj generuje symbolický CFG a o proměnných si mnoho informací neudržuje. Protože $\texttt{ample}(s) \subseteq \texttt{enabled}(s)$, nemůžeme generovat ample sety přímo: museli bychom totiž rozhodnout, zda je nějaký z přechodů v daném stavu povolený. Náš nástroj namísto toho pro \textit{řídící} stav (tedy nikoliv konfiguraci) $q$ paralelního systému spočítá množinu $A(q) \subseteq \texttt{outgoing}(q)$ tak, že pro libovolný stav (konfiguraci) $s = (q, v)$ můžeme položit $\texttt{ample}(s) = A(q) \cap \texttt{enabled}(s)$.
 
@@ -364,32 +375,12 @@ Uvedené podmínky se vztahují k explicitnímu CFG, zatímco náš nástroj gen
 Pokud zvolíme A neprázdné tak, že je dosažitelný stav, kdy žádný přechod z A nebude proveditelný, ale nějaký přechod mimo A ano, pak dojde k porušení C0. Toto je ale problém pouze pro obecné NTS, protože přechody překládané z LLVM IR jsou vždy proveditelné. \todo{To není tak docela pravda - viz například podmíněné skoky. Ale dost možná je pravda, že vždycky bude alespoň jeden přechod z daného stavu uskutečnitelný.}
 
 
-\subsubsection{Jednoduchá heuristika}
-\paragraph{Nezávislost}
-Definice relace nezávislosti umožňuje jistou flexibilitu při výběru vhodné relace. Za nezávislé budeme považovat ty páry přechodů $(t_1, t_2)$, které splňují obě následující podmínky:
-\begin{itemize}
-\item Přechody $t_1$ a $t_2$ patří ke dvěma různým vláknům.
-\item Neexistuje proměnná, sdílená oběma přechody $t_1$ i $t_2$ a modifikovaná alespoň jedním z nich.
-\end{itemize}
-
-
-\paragraph{Ample sety}
-Pro řídící stav $q_0 = \tuple{q_{0,0}, \ldots, q_{0,k-1}}$ spočítáme $A(q_0)$ následujícím způsobem. Pro každé $0 \leq i < k$ zkusíme položit $A(q_0) = \texttt{outgoing}(q_{0,i})$. Pokud zkoušená množina splňuje podmínky C0 až C3, použijeme jí. Pokud žádná z vyzkoušených množin není použitelná, položíme $A(q_0) = \texttt{outgoing}(q_0)$.
-
-Porušení podmínky C1 \label{subsec:c1-violation} znamená, že v úplném explicitním přechodovém grafu existuje posloupnost $s_0 \xrightarrow{\alpha_0} \ldots \xrightarrow{\alpha_{m-1}} s_m \xrightarrow{\beta} s_{m+1}$, $s_j = (q_j, v_j)$ taková, že $\beta \in \texttt{enabled}(s_l)$, $\beta$ je závislý na nějakém přechodu ve zvoleném $\texttt{ample}(s_0)$ a všechny $\alpha_j$ jsou nezávislé na všech přechodech v $\texttt{ample}(s_0)$. Potom, jak uvádí \cite{CLARKE}, mohou nastat dvě situace.
-
-\begin{itemize}
-\item Přechod $\beta$ pochází z vlákna $i$ (tedy $\beta \in \texttt{outgoing}(q_{m,i})$).  Protože $\alpha_j$ jsou nezávislé na $\texttt{ample}(s_0)$, musí pocházet z jiného vlákna než $i$, tedy $q_{0,i} = q_{m,i}$. Protože $\beta \not \in \texttt{ample}(s_0)$, tak $\beta \not \in \texttt{enabled}(s_0)$. V tom případě se ale stavy $s_0$ a $s_m$ liší ve valuaci některých globálních proměnných, které jsou používány přechodem $\beta$, a tedy nějaké vlákno s $tid \neq i$ obsahuje přechod, modifikující proměnnou, která je používána přechodem $\beta$.
-
-\item Pokud $\beta \not \in \texttt{outgoing}(q_{m,i})$, tedy přechod $\beta$ pochází z vlákna jiného než $i$, nějaké jiné vlákno než $i$ obsahuje přechod, který je závislý na nějakém přechodu z $\texttt{ample}(s_0)$. 
-\end{itemize}
-
-V obou případech tedy musí nějaké jiné vlákno obsahovat přechod, který s nějakým přechodem z $\texttt{ample}(s_0)$ sdílí proměnnou, která je modifikována jedním z nich. To se dá snadno ověřit, pokud si například předem pro každé vlákno množinu proměnných v něm použitých.
 
 \begin{definition}
 Pro libovolný přechod $t$ (tedy i přechod s volacím pravidlem) zápisem $W(t)$ rozumíme množinu proměnných, které může přechod $t$ změnit, a zápisem $R(t)$ množinu proměnných, které přechod $t$ čte. Pro libovolné vlákno $P$ zápisem $W(P)$ rozumíme množinu takových proměnných, že pro každou $v \in W(P)$ existuje přechod $t$ vlákna $P$ t.ž. $v \in W(t)$. Obdobně definujeme i $R(P)$.
 \end{definition}
 
+\section{Problémy}
 
 \subsection{Problém velkého vlákna}
 Ukazuje se, že pro zvolený model paralelismu \ref{subsec:paralelism} uvedená heuristika není příliš efektivní. Pro velkou množinu programů \todo{všechny, které lze vyjádřit v modelu "vytvoř vlákna na začátku", todo taky nekde popsat dalsi mozne modely} totiž napočítané množiny $W(P_i)$ a $R(P_i)$ obsahují mnoho proměnných, které ve skutečnosti vlákno $i$ nepoužívá.
@@ -513,9 +504,31 @@ a) Analyzovat vykonávané přechody, zda modifikují naše vybrané proměnné.
 
 b) Umět rozpoznat původně existující struktury i v přeloženém a zplacatělém přechodovém systému. Tedy musíme vědět, co jsou pracovní vlákna, co dělá \_\_thread\_create (a jak jí poznám) a další věci.
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\chapter{Implementace libNTS}
+\section{Motivace}
+Proc jsem nepouzil stavajici knihovny.
+\section{Omezeni}
+Zatím nepodporuji složitější operace s poli. Také nechápu, jak pracovat s parametry (par).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\chapter{Experimenty}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 \chapter{Závěr}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\chapter{Nepřiřazeno}
+\section{Inlining}
+Jo teda nepodporuju rekurzi, a proto si můžu dovolit to, co dělám v inlineru - prostě tak dlouho zainlinovávám jednotlivé BasicNts, až mi nezůstané žádné volání.
+
 \section{Možná budoucí rozšíření}
-\todo{Petr psal autorům NTS, a pokud si dobře vzpomínám, jeden z nich projevil přání, abychom mohli překládat llvm do stávající podmnožiny NTS - tedy do intů. Imho to není dost dobře možné.}
+\todo{Petr psal autorům NTS, a pokud si dobře vzpomínám, jeden z nich projevil přání, abychom mohli překládat llvm do stávající podmnožiny NTS - tedy do intů. Celé LLVM tak nepůjde, ale jistá podmnožina ano. Každopádně zatím se na tom nepracuje.}
 
 \subsection{Znaménkové datové typy v NTS}
 
