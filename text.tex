@@ -29,7 +29,7 @@
 \newtheorem{definition}{Definice}
 \newtheorem{decision}{Rozhodnutí}
 \newcommand{\tuple}[1]{\langle #1 \rangle}
-
+\newcommand{\suchthat}{\mid}
 
 \begin{document}
 
@@ -361,7 +361,7 @@ Kniha \cite{CLARKE} uvádí několik podmínek, postačují pro zachování kore
 Uvedené podmínky se vztahují k explicitnímu CFG, zatímco náš nástroj generuje symbolický CFG a o proměnných si mnoho informací neudržuje. Protože $\texttt{ample}(s) \subseteq \texttt{enabled}(s)$, nemůžeme generovat ample sety přímo: museli bychom totiž rozhodnout, zda je nějaký z přechodů v daném stavu povolený. Náš nástroj namísto toho pro \textit{řídící} stav (tedy nikoliv konfiguraci) $q$ paralelního systému spočítá množinu $A(q) \subseteq \texttt{outgoing}(q)$ tak, že pro libovolný stav (konfiguraci) $s = (q, v)$ můžeme položit $\texttt{ample}(s) = A(q) \cap \texttt{enabled}(s)$.
 
 \paragraph{Problém s C0}
-Pokud zvolíme A neprázdné tak, že je dosažitelný stav, kdy žádný přechod z A nebude proveditelný, ale nějaký přechod mimo A ano, pak dojde k porušení C0. Toto je ale problém pouze pro obecné NTS, protože přechody překládané z LLVM IR jsou vždy proveditelné.
+Pokud zvolíme A neprázdné tak, že je dosažitelný stav, kdy žádný přechod z A nebude proveditelný, ale nějaký přechod mimo A ano, pak dojde k porušení C0. Toto je ale problém pouze pro obecné NTS, protože přechody překládané z LLVM IR jsou vždy proveditelné. \todo{To není tak docela pravda - viz například podmíněné skoky. Ale dost možná je pravda, že vždycky bude alespoň jeden přechod z daného stavu uskutečnitelný.}
 
 
 \subsubsection{Jednoduchá heuristika}
@@ -376,45 +376,23 @@ Definice relace nezávislosti umožňuje jistou flexibilitu při výběru vhodn�
 \paragraph{Ample sety}
 Pro řídící stav $q_0 = \tuple{q_{0,0}, \ldots, q_{0,k-1}}$ spočítáme $A(q_0)$ následujícím způsobem. Pro každé $0 \leq i < k$ zkusíme položit $A(q_0) = \texttt{outgoing}(q_{0,i})$. Pokud zkoušená množina splňuje podmínky C0 až C3, použijeme jí. Pokud žádná z vyzkoušených množin není použitelná, položíme $A(q_0) = \texttt{outgoing}(q_0)$.
 
-Jak uvádí \cite{CLARKE}, mohou nastat dvě situace, kdy dojde k porušení podmínky C1. V úplném explicitním přechodovém grafu musí existovat posloupnost $s_0 \xrightarrow{\alpha_0} \ldots \xrightarrow{\alpha_{m-1}} s_m \xrightarrow{\beta} s_{m+1}$, $s_j = (q_j, v_j)$ taková, že $\beta \in \texttt{enabled}(s_l)$, $\beta$ je závislý na nějakém přechodu ve zvoleném $\texttt{ample}(s_0)$ a všechny $\alpha_j$ jsou nezávislé na všech přechodech v $\texttt{ample}(s_0)$.
+Porušení podmínky C1 \label{subsec:c1-violation} znamená, že v úplném explicitním přechodovém grafu existuje posloupnost $s_0 \xrightarrow{\alpha_0} \ldots \xrightarrow{\alpha_{m-1}} s_m \xrightarrow{\beta} s_{m+1}$, $s_j = (q_j, v_j)$ taková, že $\beta \in \texttt{enabled}(s_l)$, $\beta$ je závislý na nějakém přechodu ve zvoleném $\texttt{ample}(s_0)$ a všechny $\alpha_j$ jsou nezávislé na všech přechodech v $\texttt{ample}(s_0)$. Potom, jak uvádí \cite{CLARKE}, mohou nastat dvě situace.
 
 \begin{itemize}
-\item Přechod $\beta$ pochází z vlákna $i$ (tedy $\beta \in \texttt{outgoing}(q_{m,i})$).  Protože $\alpha_i$ jsou nezávislé na $\texttt{ample}(s_0)$, musí pocházet z jiného vlákna než $i$, tedy $q_{0,i} = q_{m,i}$. Protože $\beta \not \in \texttt{ample}(s_0)$, tak $\beta \not \in \texttt{enabled}(s_0)$. V tom případě se ale stavy $s_0$ a $s_m$ liší ve valuaci některých globálních proměnných, které jsou používány přechodem $\beta$, a tedy nějaké vlákno s $tid \neq i$ obsahuje přechod, modifikující proměnnou, která je používána přechodem $\beta$.
+\item Přechod $\beta$ pochází z vlákna $i$ (tedy $\beta \in \texttt{outgoing}(q_{m,i})$).  Protože $\alpha_j$ jsou nezávislé na $\texttt{ample}(s_0)$, musí pocházet z jiného vlákna než $i$, tedy $q_{0,i} = q_{m,i}$. Protože $\beta \not \in \texttt{ample}(s_0)$, tak $\beta \not \in \texttt{enabled}(s_0)$. V tom případě se ale stavy $s_0$ a $s_m$ liší ve valuaci některých globálních proměnných, které jsou používány přechodem $\beta$, a tedy nějaké vlákno s $tid \neq i$ obsahuje přechod, modifikující proměnnou, která je používána přechodem $\beta$.
 
 \item Pokud $\beta \not \in \texttt{outgoing}(q_{m,i})$, tedy přechod $\beta$ pochází z vlákna jiného než $i$, nějaké jiné vlákno než $i$ obsahuje přechod, který je závislý na nějakém přechodu z $\texttt{ample}(s_0)$. 
 \end{itemize}
-V obou případech tedy musí nějaké jiné vlákno obsahovat přechod, který sdílí proměnnou s nějakým přechodem z $\texttt{ample}(s_0)$, která je modifikována jedním z nich.
+
+V obou případech tedy musí nějaké jiné vlákno obsahovat přechod, který s nějakým přechodem z $\texttt{ample}(s_0)$ sdílí proměnnou, která je modifikována jedním z nich. To se dá snadno ověřit, pokud si například předem pro každé vlákno množinu proměnných v něm použitých.
+
+\begin{definition}
+Pro libovolný přechod $t$ (tedy i přechod s volacím pravidlem) zápisem $W(t)$ rozumíme množinu proměnných, které může přechod $t$ změnit, a zápisem $R(t)$ množinu proměnných, které přechod $t$ čte. Pro libovolné vlákno $P$ zápisem $W(P)$ rozumíme množinu takových proměnných, že pro každou $v \in W(P)$ existuje přechod $t$ vlákna $P$ t.ž. $v \in W(t)$. Obdobně definujeme i $R(P)$.
+\end{definition}
 
 
-\subsection{Jak to má fungovat}
-Nakonec jde jenom o to, zda proměnnou, kterou nějaký přechod používá, používá i jiné vlákno
-
-\todo{Možná trocha teorie}
-\subsubsection{Použitá heuristika}
-Pro každý stav sekvencializovaného systému se snažíme najít dostačující množinu jeho následníku tak, že postupně zkoušíme volit pro každý proces $i$ množinu $A_i$ přechodů v jeho řídícím stavu povolených. Definujeme množiny $W(A_i)$ a $R(A_i)$ proměnných, které mohou být některým z přechodů v $A_i$ změněny nebo čteny. Pro každý proces $P_i$ dále definujeme množinu $R_i$ globálních proměnných takovou, že pokud $P_i$ obsahuje přechod, který čte proměnnou $v$, pak $v \in R_i$. Také potřebujeme znát množinu $W_i$ globálních proměnných takovou, že pokud proces $P_i$ může změnit hodnotu proměnné $v$, pak $v \in W_i$.
-
-Pokud existuje, zvolíme takovou $A_i$, pro kterou platí, že pro libovolný jiný proces $P_j$ (t.ž $j \neq i$) platí, že žádný z přechodů tohoto procesu nemění ani nečte proměnné změněné některým z přechodů v $A_i$, ani  nemění žádou z proměnných, čtenou některým z vybraných přechodů. Formálněji
-\begin{equation}
-W(A_i) \cap (W_j \cup R_j) = \emptyset \land R(A_i) \cap W_j = \emptyset
-\end{equation}
-
-\todo{Popsat tu argumentaci z knizky?}
-
-\paragraph{Výpočet}
-Mějme vlákno $P_i$, které instancuje plochý BasicNts $B_i$. Pokud $B_i$ obsahuje $k$ přechody $t_1, \ldots t_k$, potom $W_i$ i $R_i$ můžeme spočítat jako sjednocení
-\begin{equation}
-W_i = W(t_1) \cup W(t_2) \cup \ldots \cup W(t_k)
-\end{equation}
-\begin{equation}
-R_i = R(t_1) \cup R(t_2) \cup \ldots \cup R(t_k)
-\end{equation}
-\todo{Dat to do jedne rovnice?}
-kde $W(t_j)$, $R(t_j)$ reprezentují množinu proměnných, které jsou modifikovány / čteny přechodem $t_j$.
-
-\todo{Formálněji popsat, co jsou proměnné čtené / modifikované nějakým přechodem}.
-
-\subsection{Problém velkého procesu}
-Ukazuje se, že pro zvolený model paralelismu \ref{subsec:paralelism} uvedená heuristika není příliš efektivní. Pro velkou množinu programů \todo{všechny, které lze vyjádřit v modelu "vytvoř vlákna na začátku", todo taky nekde popsat dalsi mozne modely} totiž napočítané množiny $W_i$ a $R_i$ obsahují mnoho proměnných, které ve skutečnosti vlákno $i$ nepoužívá.
+\subsection{Problém velkého vlákna}
+Ukazuje se, že pro zvolený model paralelismu \ref{subsec:paralelism} uvedená heuristika není příliš efektivní. Pro velkou množinu programů \todo{všechny, které lze vyjádřit v modelu "vytvoř vlákna na začátku", todo taky nekde popsat dalsi mozne modely} totiž napočítané množiny $W(P_i)$ a $R(P_i)$ obsahují mnoho proměnných, které ve skutečnosti vlákno $i$ nepoužívá.
 
 
 \subsubsection{Problémová situace}
@@ -426,13 +404,13 @@ Uvažme například příklad \todo{reference}. Hlavní funkce vytvoří dvě vl
 
 define i8* @p1 ( i8* %x ) {
 	... ; some local calculations
-	store i32 42, i32* @G1;
+t1:	store i32 42, i32* @G1;
 	ret i8* null;
 }
 
 define i8* @p2 ( i8* ) {
 	... ; some more local calculations
-	store i32 14, i32* @G2;
+t2:	store i32 14, i32* @G2;
 	ret i8* null;
 }
 
@@ -447,49 +425,79 @@ define void @main() {
 
 \begin{figure}
 \begin{lstlisting}
-_thread_pool_routine {
+instances __thread_pool_routine[2], main[1];
+...
+__thread_pool_routine {
 	initial	si;
-	si  -> sr1 { ( ( tps[tid] = 1 ) && havoc (  ) ) }
-	sr1 -> ss  { p2 (  ) }
-	ss  -> si  { ( tps'[ tid ] = [0] && havoc ( tps ) ) }
-	si  -> sr2 { ( ( tps[tid] = 2 ) && havoc (  ) ) }
-	sr2 -> ss  { p1 (  ) }
-	ss  -> si  { ( tps'[ tid ] = [0] && havoc ( tps ) ) }
+	si  -> sr1 { ...  }
+	sr1 -> ss  { p1() }
+	ss  -> si  { ...  }
+	si  -> sr2 { ...  }
+	sr2 -> ss  { p2() }
+	ss  -> si  { ...  }
 }
 \end{lstlisting}
 \caption{Přechodový systém pracovního vlákna}
 \end{figure}
-\todo{Opravit číslování vláken}
 
-Po zploštění tedy thread\_pool\_routine obsahuje přechody, které odpovídají původním funkcím p1 a p2. Protože tento BasicNts je vykonáván v každém pracovním vlákně, v každém pracovním vlákně jsou také obsaženy všechny přechody přeložených funkce p1 a p2. Napočítané množiny $W_i$ (a $R_i$) všech pracovních vláken jsou pak stejné a tedy zbytečně velké: některé z přechodů se v daném vlákně totiž nikdy nevykonají.
+Po zploštění tedy thread\_pool\_routine obsahuje přechody, které odpovídají původním funkcím p1 a p2. Protože tento BasicNts je vykonáván v každém pracovním vlákně, v každém pracovním vlákně jsou také obsaženy všechny přechody přeložených funkcí p1 a p2. Potom napočítané množiny $W(P_0) = W(P_1) \supseteq \{ G1, G2\}$. V situaci, kdy některé z vláken zapisuje do $G1$ (viz t1), potom nedojde k použití přechodu odpovídajícího t1 jako jednoprovkového ample setu, přestože žádný jiný přechod není na t1 závislý. 
 
 \subsubsection{Možné řešení}
-Pro zvolený model paralelismu se zdá být rozložení programu na vlákna příliš hrubým, protože mnohá vlákna budou mít totožné řízení (BasicNts). Rozložme tedy program jemněji na jednotky, kterým budeme říkat "úlohy".
+Pro zvolený model paralelismu se rozložení programu na vlákna zdá být příliš hrubým, protože mnohá vlákna budou mít totožné řízení (BasicNts, viz předchozí příklad). Rozložme tedy program jemněji na jednotky, kterým budeme říkat "úlohy".
 
 \begin{definition}
-Pro plochý přechodový systém N, množina úloh $\texttt{Tasks}(N)$ je množina taková, že libovolný řídící stav nějakého BasicNts z N leží v právě jedné úloze $T \in \texttt{Tasks}(N)$.
+Pro plochý (i paralelní) přechodový systém N, množina úloh $\texttt{Tasks}(N)$ je množina taková, že libovolný řídící stav nějakého BasicNts z N leží v právě jedné úloze $T \in \texttt{Tasks}(N)$.
 \end{definition}
 
 Přechodové systémy, vzniklé překladem pomocí našeho nástroje z LLVM IR a následným zploštěním, obsahují právě dva použité BasicNts: první z nich odpovídá funkci \texttt{main} původního programu, druhý pak kódu vykonávaným vláknem z thread poolu. Pro účely této práce můžeme rozdělit jejich stavy do úloh následujícím způsobem.
 
 \begin{enumerate}
-\item Máme právě jednu hlavní úlohu $T_{\texttt{main}}$, právě jednu nečinnou úlohu $T_{\texttt{idle}}$ a jednu úlohu $T_i$ pro každou funkci $f_i$, která je někde v původním LLVM IR programu předávána jako parametr funkce \texttt{pthread\_create}.
+\item Máme právě jednu hlavní úlohu $T_{\texttt{main}}$, právě jednu nečinnou úlohu $T_{\texttt{idle}}$ a jednu úlohu $T_{f_i}$ pro každou funkci $f_i$, která je někde v původním LLVM IR programu předávána jako parametr funkce \texttt{pthread\_create}.
 \item Každý stav $s$ hlavního BasicNts (tj. toho, který vznikl překladem funkce main) leží v $T_{\texttt{main}}$.
 \item Všechny stavy, odpovídající stavům nezploštělého \texttt{\_\_thread\_pool\_routine}, leží v $T_{\texttt{idle}}$.
-\item Všechny ostatní řídící stavy jsou řídícími stavy zploštělého \texttt{\_\_thread\_pool\_routine}, do kterého se dostaly během fáze zplošťování. Každý z těchto stavů přiřadíme úloze $T_i$ takové, že daný stav pochází z funkce $f_i$.
+\item Všechny ostatní řídící stavy jsou řídícími stavy zploštělého \texttt{\_\_thread\_pool\_routine}, do kterého se dostaly během fáze zplošťování. Každý z těchto stavů přiřadíme úloze $T_{f_i}$ takové, že daný stav pochází z funkce $f_i$.
 \end{enumerate}
 
 Koncept úloh přirozeně rozšiřujeme i na přechody:
 \begin{definition}
-Přechod $t$ náleží úloze $T$ právě tehdy, když zdrojový řídící stav přechodu $t$ náleží úloze $T$.
+Přechod $t$ náleží úloze $T$ (zapisujeme $t \in \texttt{trans}(T)$) právě tehdy, když zdrojový řídící stav $s$ přechodu $t$ ($s = \texttt{from}(t)$) náleží úloze $T$ ($s \in T$).
 \end{definition}
 Protože každý přechod má jeden zdrojový řídící stav, každý přechod náleží právě jedné úloze. Tímto způsobem můžeme o každé úloze říci, jaké globální proměnné používá.
 
 \begin{definition}
-Úloha $T$ čte globální proměnnou $v$ právě tehdy, pokud existuje přechod $t$, který čte $v$ a patří $T$. Podobně, $T$ mění $v$ právě pokud nějaký přechod $t$ patřící $T$ mění $v$.
+Zápis $W(T)$ rozšiřujeme na úlohy následujícím způsobem:
+\begin{equation*}
+v \in R(T) \Leftrightarrow \exists t, t \in \texttt{trans}(T) \land v \in R(t)
+\end{equation*}
+\begin{equation*}
+v \in W(T) \Leftrightarrow \exists t, t \in \texttt{trans}(T) \land v \in W(t)
+\end{equation*}
+\end{definition}
+Tedy úloha $T$ čte globální proměnnou $v$ právě tehdy, pokud existuje přechod $t$, který čte $v$ a patří $T$. Podobně, $T$ mění $v$ právě pokud nějaký přechod $t$ patřící $T$ mění $v$.
+Dále, v každém řídícím stavu paralelního systému můžeme některé úlohy označit jako \textit{aktivní}.
+\begin{definition}
+Pro řídící stav $q = \tuple{q_0, \ldots, q_{k-1}}$ paralelního systému definujeme množinu $\texttt{active}(q) = \{ T \suchthat \exists i, 0 \leq i < k \land q_i \in T \}$
 \end{definition}
 
-\todo{Jak může úloha aktivovat jinou a co z toho plyne. Je ale třeba mít popsané základy POR.}
+Jednou ze situací, která se hojně vyskytuje, je "přepnutí úlohy". V případě přechodových systémů, vzniklých překladem z LLVM, například často dochází k přepnutí $T_\texttt{idle}$ na nějakou $T_{f_i}$. 
+
+\newcommand{\switchto}{\rightarrow}
+\newcommand{\canswitchto}{\dashrightarrow}
+
+\begin{definition}
+Definujeme antireflexivní binární relaci nad úlohami $\switchto$ tak, že $T_1 \switchto T_2$ právě tehdy, když $T_1 \neq T_2$ a existují řídící stavy paralelního systému $q_1, q_2$, valuace $v_1, v_2$ a přechod $t$ takové, že stav (konfigurace) $\tuple{q_1, v_1}$ je v paralelním systému dosažitelný, $T_1 \in \texttt{active}(q_1) \land T_2 \in \texttt{active}(q_2)$ a $\tuple{q_1, v_1} \xrightarrow{t} \tuple{q_2, v_2}$.
+\end{definition}
+
+Protože rozhodnout dosažitelnost nějakého stavu není snadné, budeme často pracovat volnější s relací "$T_1$ se může přepnout na $T_2$".
+
+\begin{definition}
+Binární relace nad úlohami $\canswitchto$ je relací možného přepnutí, pokud je antireflexivní a pro libovolné dvě úlohy $T_1, T_2$ takové, že $T_1 \switchto T_2$, platí $T_1 \canswitchto T_2$.
+\end{definition}
+
+Nyní se můžeme vrátit k úvahám ze sekce \ref{subsec:c1-violation}. Přechod $\beta$ jistě leží v nějaké úloze $T_{\beta}$. Pokud přechod $T_{\beta} \not \in \texttt{active}(s_0)$, $T_{\beta}$ musela být aktivována během sekvence přechodů $\alpha_j$. Musí tedy existovat nějaká úloha $T$, kterou je možné po několika přepnutích přepnout až na $T_{\beta}$, zejména pak dvojice $\tuple{T, T_{\beta}}$ musí ležet v tranzitivním uzávěru relace $\canswitchto$.
+
+
+\todo{Jak může úloha způsobit přepnutí jiné úlohy na ještě jinou}
 
 %Protože každé pracovní vlákno (kromě vlastního) může potenciálně vykonávat libovolnou úlohu, tak téměř každé vlákno může použít téměř každou proměnnou. Redukce by se zredukovala na pouhý test "používám globální proměnné"?
 %Tedy je potřeba mít rozdělené stavy / přechody do úloh. O každé úloze spočítáme, jaké globální proměnné používá, a také, jaké jiné úlohy může aktivovat. Potom, pokud budeme znát řídící stav každého vlákna, můžeme zjistit, jaké úlohy běží a tedy i jaké globální proměnné jsou důležité.
