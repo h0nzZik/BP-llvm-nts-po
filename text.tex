@@ -69,13 +69,11 @@ Tyto dvě části jsou poměrně nezávislé a mohou být implementovány jako r
 Chceme tedy z paralelního NTS, který vznikl překladem z LLVM IR, učinit sekvenční. Pokud o vstupním paralelním NTS nebudeme nic předpokládat, nástroj pro sekvencializaci bude muset umět korektně zacházet s funkčními voláními, protože ta mohou být součástí NTS. To zejména znamená, že nástroj si bude muset pro každý stav výstupního systému udržovat přehled o tom, jaké funkce jsou v jakém vlákně aktivní. Implementace takového nástroje nemusí být snadná, proto jsme učinili následující rozhodnutí:
 
 % tohle bych chtel v sedem ramecku, podobne jako byvaji citace nebo theoremy
-\begin{decision}
+\begin{decision}\label{decision:sequentialize-flat-llvm}
 Nástroj pro sekvencializaci předpokládá, že vstupní paralelní systém neobsahuje funkční volání, tedy (v termínech) NTS není hierarchický. Takové NTS budeme dále označovat jako "ploché".
 \end{decision}
 
-Většina skutečných programů v jazyce LLVM IR ovšem obsahují funkční volání, a rádi bychom takové programy podporovali. Nabízejí se dvě možnosti, jak takovou podporu zajistit. První spočívá v tom, že paralelní program v jazyce LLVM IR přeložíme na paralelní a (potenciálně) hierarchický přechodový systém v jazyce NTS, který následně převedeme na ekvivalentní paralelní plochý přechodový systém. Alternativní možností je nejprve odstranit funkční volání z paralelního LLVM IR programu a následně tento plochý program převést na plochý paralelní přechodový systém.
-
-Tak či onak, programy s rekurzivním voláním nebudou podporovány.
+Většina skutečných programů v jazyce LLVM IR ovšem obsahují funkční volání, a rádi bychom takové programy podporovali. Nabízejí se dvě možnosti, jak takovou podporu zajistit. První spočívá v tom, že paralelní program v jazyce LLVM IR přeložíme na paralelní a (potenciálně) hierarchický přechodový systém v jazyce NTS, který následně převedeme na ekvivalentní paralelní plochý přechodový systém. Alternativní možností je nejprve odstranit funkční volání z paralelního LLVM IR programu a následně tento plochý program převést na plochý paralelní přechodový systém. Oba způsoby však znamenají, že programy s rekurzivním voláním nebudou podporovány.
 
 \paragraph{Zplošťování LLVM}
 Zploštění programu v LLVM IR nevyžaduje téměř žádnou další práci, protože již na tuto úlohu existuje llvm průchod. Jmenuje se
@@ -85,7 +83,12 @@ Zploštění programu v LLVM IR nevyžaduje téměř žádnou další práci, pr
 {pthread\_create(3)}, které v tomto případě nemůže být přeloženo jako volání BasicNts na úrovni NTS. Volání této funkce by tedy muselo být vhodně přeloženo již na úrovni LLVM kódu.
 
 \paragraph{Zplošťování NTS}
-Přestože je pro zplošťování NTS potřeba udělat o něco více práce, napsání odpovídajícího nástroje nám může umožnit sekvencializaci libovolného NTS. Navíc nejsme omezeni na práci s plochými NTS jako v předchozím případě. Z uvedených důvodů tato práce využívá tento přístup.
+Přestože je pro zplošťování NTS potřeba udělat o něco více práce, napsání odpovídajícího nástroje nám umožní sekvencializaci libovolného NTS - ne jen toho, které vzniklo překladem z LLVM, ale libovolného hierarchického NTS.
+%Navíc pokud nástroj na zploštění NTS bude dostatečně samostatný, bude ho možné znovu využít jinde.
+
+\begin{decision}\label{decision:do-nts-flattening}
+Protože kvůli rozhodnutí~\ref{decision:sequentialize-flat-llvm} nástroj na sekvencializaci NTS podporuje pouze ploché NTS, vytvoříme nástroj, který z hierarchického NTS udělá nehierarchické (ploché) NTS.
+\end{decision}
 
 \subsection{Architektura}
 Celý problém se tedy rozpadá na několik částí. Nejprve potřebujeme přeložit program z jazyka LLVM IR do formalizmu NTS, poté z přeloženého programu odstranit volání subsystémů, plochý program sekvencializovat s využitím partial order redukce a nakonec ho uložit do souboru. Pro spolupráci těchto částí je třeba mít vybudovanou vhodnou paměťovou reprezentaci programu v jazyce NTS. Existence parseru by byla užitečná (zejména pro testování), ale není nutná.
@@ -140,10 +143,13 @@ Z uvedených důvodů budeme i~v~této práci jako vstupní jazyk využívat pr�
 
 
 \section{Posix threads}
+\label{sec:posix-threads}
 Jazyk LLVM IR sám neposkytuje podporu pro explicitní paralelismus. Té je možné docílit pouze použitím specializovaných knihoven. Knihovna Posix threads (zkráceně pthreads) je standardizovanou knihovnou s rozhraním pro jazyk C, která obsahuje funkce pro manipulaci s vlákny.
 
 \subsection{pthread_create()}
-Nejzajímavější funkcí z této knihovny je \texttt{pthread\_create}\cite{man-pthread-create} (viz obrázek~\ref{fig:pthread-create}), která spustí funkci, jež dostala jako jeden ze svých argumentů, v nově vytvořeném vlákně.
+Nejzajímavější funkcí z této knihovny je \texttt{pthread\_create}\cite{man-pthread-create} (viz obrázek~\ref{fig:pthread-create-c}), která spustí funkci, jež dostala jako argument parametru \texttt{start\_routine}, v nově vytvořeném vlákně. Funkce dále uloží ID vlákna do proměnné \texttt{*thread} (nesmí být \texttt{null}), argument parametru \texttt{arg} předá jako parametr funkci \texttt{start\_routine} a o úspěchu či neúspěchu informuje volajícího prostřednictvím návratové hodnoty.
+
+Protože podle normy POSIX.1-2001 \todo{reference} je \texttt{pthread\_t} neprůhledný (opaque) datový typ, prototyp této funkce v jazyce LLVM IR je platformově závislý. Na obrázku~\ref{fig:pthread-create-llvm} se nachází prototyp \texttt{pthread\_create}, jak je k dispozici v systému Fedora 21 x86_64 s GNU libc verze 2.20 (pthreads jsou součásti glibc).
 
 \begin{figure}[h!]
 \begin{lstlisting}[language=C]
@@ -152,8 +158,17 @@ int pthread_create ( pthread_t *thread,
                      void *(*start_routine) (void *),
                      void *arg                        );
 \end{lstlisting}
-\label{fig:pthread-create}
-\caption{Prototyp funkce \texttt{pthread_create}}
+\label{fig:pthread-create-c}
+\caption{Prototyp funkce \texttt{pthread_create} v jazyce C}
+\end{figure}
+
+\begin{figure}[h!]
+\begin{lstlisting}[language=llvm]
+declare i32 @pthread_create (
+	i64*, %union.pthread_attr_t*, i8* (i8*)*, i8* )
+\end{lstlisting}
+\label{fig:pthread-create-llvm}
+\caption{Prototyp funkce \texttt{pthread_create} v jazyce LLVM IR}
 \end{figure}
 
 \section{NTS}
@@ -187,6 +202,7 @@ Havoc je speciální atomická propozice, jejíž účelem je zamezit samovolné
 Její význam si můžeme ukázat na následujícím příkladu: uvažme přechodový systém s proměnnými $x,y$ typu int, konfiguraci $s_1 = \tuple{q_1, v_1} \land v_1(x) = 0 \land v_1(y) = 3$, konfiguraci $s_2 = \tuple{q_2, v_2} \land v_2(x) = 1 \land v_2(y) = 5$ a přechod $q_1 \overset{F}{\rightarrow} q_2$. Pokud $F \equiv x' = x + 1$, pak je možné s využitím uvedeného pravidla přejít z konfigurace $q_1$ do konfigurace $q_2$, protože formule $1 = 0 + 1$ je tautologií. Tento přechod ale v rozporu s očekáváním modifikuje proměnnou y. Naopak, pokud $F \equiv x' = x + 1 \land \texttt{havoc}(x)$, potom uvedené pravidlo nelze použít pro přechod z $q_1$ do $q_2$. Po dosazení a expandování \texttt{havoc} totiž vznikne formule $1 = 0 + 1 \land 3 = 5$, která je nesplnitelná.
 
 \subsection{Paralelismus}
+\label{subsec:nts-paralelism}
 Jazyk NTS umožňuje paralelní běh libovolného konečného počtu vláken. Ke každému vláknu je přiřazen \textit{vstupní bod} (entry point), což je BasicNts, který je vykonáván v kontextu daného vlákna. Paralelní NTS obsahuje specifikaci, tvořenou seznamem dvojic \texttt{vstupní bod [ počet vláken ]}. Identifikátory vláken jsem vláknům přiřazeny vzestupně od nuly, a to ve stejném pořadí, v jakém jsou zadány ve specifikaci.  Uvážíme-li příklad \ref{fig:nts-instances}, paralelní NTS obsahuje $N+1$ vláken, přičemž vstupním bodem vláken s $\texttt{tid} \in \{ 0, \ldots, N - 1 \}$ je BasicBlock \texttt{worker_nts} a vstupním bodem vlákna s $\texttt{tid} = N$ je BasicBlock \texttt{main_nts}.
 
 \begin{figure}[h!]
@@ -332,6 +348,44 @@ Pokud jsou ovšem obě hodnoty neznámé, porovnání je obtížnější. Výsle
 
 Jsou i jiné způsoby, jak v neznaménkové aritmetice vyjádřit chování této instrukce, ale nenašel jsem žádný elegantnější nebo jednodušší. Z tohoto důvodu současná verze překládacího nástroje nepodporuje překlad znaménkových operací do aritmetiky neznaménkových bitvektorů.
 
+\section{Omezení Posix Threads}
+Přestože knihovna posixových vláken poskytuje velkou množinu operací s vlákny (\texttt{pthread\_create}, \texttt{pthread\_join}, \texttt{pthread\_exit}, \texttt{pthread\_cancel}, \ldots) a některá synchronizační primitiva (\texttt{pthread\_mutex\_lock}), v současné době z této knihovny podporujeme pouze funkci \texttt{pthread\_create}.
+
+\subsection{Funkce \texttt{pthread\_create}}
+Některá omezení, která klademe na použití funkce \texttt{pthread\_create}, plynou zejména z toho, že téměř nepodporujeme práci s ukazateli. Funkce je použitelná za dodržení následujících podmínek:
+
+\begin{enumerate}
+\item První argument je ukazatel se snadno spočitatelnou hodnotou. Přesněji řečeno, argument by měl být typu \texttt{llvm::GlobalVariable} nebo \texttt{llvm::AllocaInst}.
+\item Argument parametru \texttt{start\_routine} musí být přímo funkce, nikoliv jiný funkční ukazatel. Přesněji řečeno, argument by měl být typu \texttt{llvm::Function}
+\item Všechny ostatní argumenty funkce \texttt{pthread\_create} musí být null.
+\item Návratová hodnota funkce \texttt{pthread\_create} musí být ignorována.
+\item Funkce, předaná jako argument parametru \texttt{start\_routine}, nesmí používat svůj parametr.
+\item Návratová hodnota této funkce musí být vždy null.
+\end{enumerate}
+
+Těmto omezením odpovídá například fragment kódu z obrázku~\ref{fig:pthread-create-usage-c}.
+\begin{figure}[h!]
+\begin{lstlisting}[language=C]
+void * f ( void * ) { ... return NULL; }
+...
+pthread_t t;
+pthread_create ( &t, NULL, f, NULL );
+\end{lstlisting}
+\caption{Možné použití funkce \texttt{pthread\_create}}
+\label{fig:pthread-create-usage-c}
+\end{figure}
+
+\subsection{Funce \texttt{pthread\_join}}
+Funkce \texttt{pthread\_join} zatím není v aktuální verzi implementována, nicméně její implementace by měla být poměrně přímočará, jak uvidíme později v sekci \todo{TODO}. Pokud bude překládací nástroj dále vyvíjen, funkce \texttt{pthread\_join} se pravděpodobně implementace dočká.
+
+\subsection{Funce \texttt{pthread\_exit}}
+Naopak, funkce \texttt{pthread\_exit} implementována není a možná ani nebude, a to ze dvou důvodů.
+\begin{enumerate}
+\item Její absence příliš nevadí, protože její význam je stejný jako návrat z hlavní funkce vlákna.
+\item Tato funkce příliš drasticky mění tok řízení, zejména není-li zavolána z hlavní funkce vlákna, nýbrž z funkce vnořené. Její zavolání v jazyce NTS by mělo způsobit opuštění všech zásobníkových oken, což není v současné implementaci překladu funkcí snadno proveditelné.
+\end{enumerate}
+\todo{Jop, ale mohli bychom překládat funkce tak, že by BasicBlocky měly jednu speciální návratovou proměnnou navíc, tedy procedury by vracely jednu hodnotu a funkce dvě. Speciální návratová hodnota by mohla informovat režijní kód o podobných věcech, výjimkách a dalších legracích.}
+Druhý důvod by nebyl problém v případě, že bychom překládali již zploštělý LLVM IR kód. Tato možnost je však není zcela v souladu s rozhodnutím~\ref{decision:do-nts-flattening}. Z druhého důvodu také není implementována ani funkce \texttt{pthread\_cancel}.
 
 \section{Rozšíření NTS}
 
@@ -442,32 +496,94 @@ V jazyce LLVM IR existuje instruce Phi, reprezentující $\Phi$ uzel \todo{znám
 
 %\subsubsection{Znaménkové datové typy v NTS}
 
-\subsection{Model paralelismu}
+\subsection{Paralelismus}
 \label{subsec:paralelism}
-\todo{Možná, že popis paralelních modelů LLVM a NTS nepatří do této sekce. Někde to ale vysvětlit musím.}
+Jak je vidět ze sekcí \ref{sec:posix-threads} a~\ref{subsec:nts-paralelism}, jazyky LLVM IR a NTS implementují paralelismus velice odlišně. Asi nejvýznamějším rozdílem je, že použití pthreads v jazyce LLVM IR umožňuje vytvářet vlákna kdykoliv, a že pro množství programů není možné určit, kolik vláken nakonec použijí (problém zastavení\todo{Je ta nemožnost a redukce na PZ zřejmá?}). Existuje více způsobů, jak se se zmiňovanou rozdílností vypořádat, zde však uvádíme pouze dva nejvýraznější. K oběma uvedeným způsobům se vztahuje kód z obrázku~\ref{fig:llvm2nts:simple-c:orig}, který je zde do jazyka NTS přeložen postupně oběma způsoby.
 
-Jazyky LLVM IR a NTS implementují paralelismus velice odlišně. Během návrhu překladu jsme preferovali pokrytí možných použití pthreads v LLVM před jednoduchostí výsledného NTS.
+\begin{figure}[h]
+\begin{lstlisting}[language=C]
+void * p1 ( void * ) { ... }
+void * p2 ( void * ) { ... }
 
-\subsubsection{LLVM, pthreads}
-Volání této funkce se může ve zdrojovém programu vyskytnout kdekoliv, a na umístění a četnost těchto výskytů neklademe žádná omezení. Omezujeme ale možnosti použití této funkce, a to následujícím způsobem:
+int main ( void ) {
+	pthread_t t1, t2;
+	pthread_create ( &t1, NULL, p1, NULL );
+	pthread_create ( &t2, NULL, p2, NULL );
+	/* ... */
+	return 0;
+}
+\end{lstlisting}
+\caption{Jednoduchý vícevláknový C program}
+\label{fig:llvm2nts:simple-c:orig}
+\end{figure}
 
 \begin{enumerate}
-\item První argument musí být ukazatel na globální proměnnou či lokální proměnnou volající funkce.
-\item Argument parametru start\_routine musí být přímo funkce, nikoliv jiný funkční ukazatel.
-\item Všechny ostatní argumenty funkce \texttt{pthread\_create} musí být null.
-\item Návratová hodnota funkce \texttt{pthread\_create} nesmí být použita.
-\item Funkce, předaná jako argument parametru start\_routine, nesmí používat svůj parametr.
-\item Návratová hodnota této funkce musí být vždy null.
+\item Můžeme omezit množinu vstupních programů na ty, kde se všechny výskyty volání funkce \texttt{pthread\_create} nachází v hlavní funkci před výskytem prvního cyklu. Takových výskytů bude konečně mnoho a protože každý z nich může být řízením navštívený nejvýše jednou, snadno získáme hodnotu nejvyššího počtu souběžně běžících vláken. Potom můžeme pro každý výskyt volání funkce \texttt{pthread\_create} vytvořit jedno vlákno, jehož vstupní bod odpovídá předávané funkci. Pokud by se navíc první přístup na globální proměnné způsobený hlavní funkcí vyskytoval až po posledním volání \texttt{pthread\_create}, mohli bychom spustit všechna vlákna paralelně s funkcí main. Na obrázku~\ref{fig:llvm2nts:simple-c:simple-nts} je znázorněno, jak by mohl vypadat přeložený kód programu z obrázku~\ref{fig:llvm2nts:simple-c:orig}.
+
+
+\begin{figure}[h]
+\begin{lstlisting}
+instances main[1], p1[1], p2[1];
+en1, en2 : bool;
+init en1 = false && en2 = false;
+p1 {
+	initial si;
+	si -> s1 { en1 = true && havoc() }
+	s1 -> ... // kod funkce p1
+}
+// p2 podobne jako p1
+main {
+	initial s0;
+	s0 -> s1 { en1' = true && havoc ( en1 ) }
+	s1 -> s2 { en1' = true && havoc ( en2 ) }
+	s2 -> ... // kod funkce main
+}
+\end{lstlisting}
+\caption{Přeložený program z obrázku~\ref{fig:llvm2nts:simple-c:orig} - první způsob}
+\label{fig:llvm2nts:simple-c:simple-nts}
+\end{figure}
+
+\item Opačnou možností je podporovat programy, které mohou volat funkci \texttt{pthread\_create} kdykoliv, a to i v právě vytvořeném vlákně. Princip této varianty spočívá ve vytvoření N pracovních vláken a jednoho vlákna hlavního s tím, že všechna pracovní vlákna jsou v iniciální konfiguraci nečinná. Vstupní bod společný pro všechna pracovní vlákna pak obsahuje volací přechody pro zavolání každé funkce, která je v původním programu někdy předávána funkci \texttt{pthread\_create}, avšak každý takový přechod je strážen formulí takovou, že z iniciální konfigurace paralelního systému není daný přechod povolený - vlákno tedy nemá žádný \textit{efekt}. Každé volání funkce \texttt{pthread\_create} se pokusí najít nečinné vlákno (při neúspěchu přejde do chybového stavu) a modifikuje globální proměnné tak, aby v onom vláknu došlo k povolení odpovídajícího přechodu. Naopak, po skončení funkce běžící v pracovním vláknu se vlákno opět vrací do nečinného stavu a je možné ho recyklovat. Zjednodušenou verzi této možnosti znázorňuje obrázek~\ref{fig:llvm2nts:simple-c:realworld-nts}.
 \end{enumerate}
 
 
-\subsubsection{NTS}
-Jazyk NTS řeší paralelismus odlišným způsobem. 
+\begin{figure}[h]
+\begin{lstlisting}
+instances worker[2], main[1];
+sel[2] : int;
+init sel[0] = 0 && sel[1] == 0;
 
-\subsubsection{Překlad}
-V případě paralelního LLVM překládací program vygeneruje NTS, jež vytváří 1 hlavní vlákno a N vláken pracovních. Každé pracovní vlákno má přiřazeno stav a v každém čase se nachází buď ve stavu nečinném, nebo ve stavu činném. Protože na začátku běhu programu v jazyce LLVM IR je spuštěno pouze jedno vlákno, zatímco v přechodovém systému NTS jsou spuštěna všechna vlákna, chceme, aby běžící pracovní vlákna neměla žádný \textit{efekt}. Tedy pracovní vlákno bude ve výchozím stavu v režimu nečinném. Veškerá volání funkcí \texttt{pthread\_create} nahradíme kódem, který způsobí, že se nějaké nečinné pracovní vlákno stane činným a začne vykonávat kód odpovídající funkce. Po ukončení běhu této funkce vlákno opět přejde do stavu nečinnosti a je tak možné ho znovu využít.
+worker {
+	initial si;
+	si -> s1 { sel[tid] == 1 && havoc() }
+	si -> s2 { sel[tid] == 2 && havoc() }
+	s1 -> sf { p1() }
+	s2 -> sf { p2() }
+	// Volitelna recyklace
+	// sf -> si { sel'[tid] = 0 && havoc(sel) }
+}
+p1 { ... } p2 { ... }
+main {
+	initial s0;
+	s0 -> s1 { sel'[0] = 1 && havoc(sel)  }
+	s1 -> s2 { sel'[1] = 2 && havoc(sel)  }
+	s2 -> ... // kod funkce main
+}
+\end{lstlisting}
+\caption{Přeložený program z obrázku~\ref{fig:llvm2nts:simple-c:orig} - druhý způsob, zjednoduseno}
+\label{fig:llvm2nts:simple-c:realworld-nts}
+\end{figure}
 
-\todo{Vložit někam výsledný NTS kód}
+\todo{Do appendixu pridat skutecnou verzi s funkci \texttt{thread\_create}}
+
+Množství skutečných programů se nevejde do množiny, podporované první možností. Právě z toho důvodu jsme se rozhodli zvolit možnost druhou.
+
+\begin{decision}\label{decision:real-world-programs}
+Překládací nástroj neklade žádná omezení na umístění a četnost výskytů volání funkce \texttt{pthread\_create}.
+\end{decision}
+
+\todo{Btw vůbec neřešíme memory modely a předpokládáme sekvenční konzistenci.}
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -526,7 +642,7 @@ Ukazuje se, že pro zvolený model paralelismu \ref{subsec:paralelism} uvedená 
 \subsubsection{Problémová situace}
 Uvažme například příklad \todo{reference}. Hlavní funkce vytvoří dvě vlákna, která používají vzájemně disjunktní množiny globálních proměnných. Po přeložení do jazyka NTS (se zvoleným modelem paralelismu) výsledné NTS obsahuje vygenerované BasicNts "__thread_pool_routine" \todo{Program to pojmenovava '__thread_poll_routine' - prijde opravit}, které obsahuje přechody, volající přeložené funkce @p1 a @p2.
 \begin{figure}[h!]
-\begin{lstlisting}
+\begin{lstlisting}[language=llvm]
 @G1 = global i32 16;
 @G2 = global i32 0;
 
