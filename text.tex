@@ -2,9 +2,13 @@
 \usepackage[utf8]{inputenc}
 \usepackage[czech]{babel}
 \usepackage[T1]{fontenc}
+
 \usepackage{amsmath}
 \usepackage{amsfonts}
 \usepackage{amssymb}
+\usepackage{amsthm}
+
+\usepackage{float}
 \usepackage{makeidx}
 \usepackage{graphicx}
 \usepackage{syntax}    % texlive-mdwtools
@@ -12,7 +16,6 @@
 \usepackage{todonotes} % command \todo
 \usepackage{hyperref}
 \usepackage{listings}
-\usepackage{amsthm}
 \usepackage[detect-all]{siunitx} % numrange
 \usepackage[
    backend=biber      % if we want unicode 
@@ -22,6 +25,8 @@
   ,bibencoding=UTF8   % this is necessary only if bibliography file is in different encoding than main document
 ]{biblatex}
 
+\floatstyle{boxed}
+\restylefloat{figure}
 \addbibresource{literature.bib}
 
 \author{Jan Tušil <410062@mail.muni.cz>}
@@ -95,7 +100,13 @@ Celý problém se tedy rozpadá na několik částí. Nejprve potřebujeme přel
 Projekt LLVM~\cite{LLVM} je sada knihoven a nástrojů, tvořící infrastrukturu pro tvorbu překladačů. Ke své činnosti využívá mezijazyk známý jako LLVM intermediate representation~\cite{LLVM-langRef} (dále LLVM IR nebo jen IR) a sadu dobře definovaných softwarových rozhraní pro manipulaci s~ním. Práci překladače vybudovaného nad LLVM lze rozdělit do několika fází: nejprve je zpracován kód ve vstupním jazyce (proběhne lexikální, syntaktická a sémantická analýza), poté je vygenerován mezikód v~jazyce LLVM IR, nad tímto pak proběhnou zvolené optimalizace, z~výsledného IR kódu je vygenerován platformově specifický kód a~proběhne linkování. Tato architektura umožňuje využít při tvorbě překladače již jednou napsaných částí~\cite{AOSABOOK-LLVM}.
 
 \subsection{LLVM IR}
-LLVM IR je typovaný jazyk s tou vlastností, že do každého symbolu (proměnná, ukazatel, funkce, \ldots) je přiřazeno právě jednou. Tato vlastnost se nazývá static single assignment form (dále SSA). Kód je uchováván v~modulech a~rozčleněn do funkcí, které se skládají ze základních bloků. Základní blok (basic block, dále blok) je taková posloupnost instrukcí, která má jeden vstupní bod a~jeden výstupní. Zejména tedy není možné provádět skoky dovnitř bloku nebo vyskočit z~bloku jinde, než na konci. Sémantika tohoto jazyka je dobře zdokumentována, navíc probíhá práce na její formalizaci~\cite{LLVMForm}.
+LLVM IR je typovaný jazyk podobný jazyku symbolických adres, od kterého se však liší v několika zásadních vlastnostech.
+\begin{itemize}
+\item LLVM IR je platformově nezávislý a není určený pro žádný fyzicky existující procesor.
+\item V jazyce LLVM IR je možné používat neomezené množství registrů.
+\item Do každého registru je možné přiřadit hodnotu pouze jednou. Tato vlastnost je nazývána \textit{static single assignment form} (dále \textit{SSA}).
+\end{itemize}
+Kód je uchováván v~modulech a~rozčleněn do funkcí, které se skládají ze základních bloků. Základní blok (basic block, dále blok) je taková posloupnost instrukcí, která má jeden vstupní bod a~jeden výstupní. Zejména tedy není možné provádět skoky dovnitř bloku nebo vyskočit z~bloku jinde, než na konci. Sémantika tohoto jazyka je dobře zdokumentována, navíc probíhá práce na její formalizaci~\cite{LLVMForm}.
 
 \subsubsection{Instrukční sada}
 Instrukční sada LLVM IR je svou jednoduchostí podobná RISCovým instrukčním sadám. Instrukce jsou rozděleny na ukončovací, binární, bitové, paměťové a ostatní, přičemž pouze ukončovací instrukce mohou měnit tok řízení. Tyto instrukce vždy ukončují Basic Block a rozhodují, který blok bude vykonán po dokončení aktuálního.
@@ -155,76 +166,72 @@ Základní jednotkou NTS je BasicNts, což je samostatný přechodový systém, 
 Přechodová pravidla mohou být dvojího druhu: volací pravidlo (například  $(p1',p2') = \texttt{factorize} (x)$) slouží k zavolání jiného BasicNts, předání parametrů volanému a uložení výsledků volání, zatímco formulové pravidlo (například $d' * d' = x$) obsahuje formuli predikátové logiky prvního řádu, jejíž splnění umožňuje přechod do cílového stavu přechodu. 
 
 \subsection{Formule}
-Formule mohou být kvantifikované a jsou složeny pomocí logických spojek z atomických propozic a jiných formulí, přičemž za atomické propozice jsou považovány zejména booleovské termy a výsledky porovnání termů, navíc také \texttt{havoc}. Nutno poznamenat, že ve formuli se mohou vyskytovat i hodnoty proměnných, platné v cílovém stavu. Tyto jsou označené znakem $\prime$. Jak je vidět u předchozího příkladu, je tak možné vytvořit formuli, která požaduje, aby hodnota proměnné $y$ v příštím stavu byla odmocninou hodnoty proměnné $x$ ve stavu současném.
+Formule mohou být kvantifikované a jsou složeny pomocí logických spojek z atomických propozic a jiných formulí, přičemž za atomické propozice jsou považovány zejména booleovské termy a výsledky porovnání termů, navíc také \texttt{havoc} (viz~\ref{subsec:nts-havoc}). Nutno poznamenat, že ve formuli se mohou vyskytovat i hodnoty proměnných, platné v cílovém stavu. Tyto jsou označené znakem $\prime$. Jak je vidět u předchozího příkladu, je tak možné vytvořit formuli, která požaduje, aby hodnota proměnné $y$ v příštím stavu byla odmocninou hodnoty proměnné $x$ ve stavu současném.
 
 \subsection{Termy}
 Termy jsou již na syntaktické úrovni rozděleny na aritmetické a booleovské. Mezi booleovské termy patří booleovské konstanty, booleovské proměnné a jiné termy, pospojované obvyklými logickými operacemi. Obdobně, aritmetické termy jsou reálné a celočíselné konstanty a proměnné, pospojované aritmetickými operacemi z množiny $\{+, -, *, /, \% \}$. Jazyk explicitně vyžaduje, aby všechny subtermy každého termu měly stejný datový typ, jako celý term.
 
 \subsection{Typový systém}
-Jazyk NTS je vybaven třemi skalárními datovými typy: Int, Bool, Real. Datový typ \texttt{Int} reprezentuje matematické celé číslo, jeho doménou je tedy množina $\mathbb{Z}$; datový typ \texttt{Real} reprezentuje matematické reálné číslo, tedy jeho doménou je množina $\mathbb{R}$; nakonec typ \texttt{Bool} nabývá pouze hodnoty z množiny $\{ 0, 1 \}$. Jazyk dále podporuje type pole hodnot libovolného skalárního aritmetického typu.
+Jazyk NTS je vybaven třemi skalárními datovými typy: Int, Bool, Real. Datový typ \texttt{Int} reprezentuje matematické celé číslo, jeho doménou je tedy množina $\mathbb{Z}$; datový typ \texttt{Real} reprezentuje matematické reálné číslo, tedy jeho doménou je množina $\mathbb{R}$; nakonec typ \texttt{Bool} nabývá pouze hodnoty z množiny $\{ \texttt{true}, \texttt{false} \}$. Jazyk dále podporuje type pole hodnot libovolného skalárního aritmetického typu.
 
 \subsection{Sémantika}
+\label{subsec:nts-configuration}
 Konfigurací systému se nazývá dvojice $\tuple{q, v}$, kde $q$ je jedním z řídících stavů a $v$ valuace proměnných (tedy funkce, která každé proměnné přiřazuje hodnotu). Přechod z~konfigurace $\tuple{q_1, v_1}$ do konfigurace $\tuple{q_2, v_2}$ je možný, pokud existuje přechodové pravidlo $q_1 \overset{F}{\rightarrow} q_2$ s~následující vlastností: formule vzniklá z~$F$ nahrazením proměnných $p$ hodnotami $v_1(p)$ a~nahrazením proměnných ve tvaru $p^\prime$ hodnotami $v_2(p)$ je tautologií. Formálnější popis je k~dispozici v~\cite{NTSref}.
 
 \subsection{Havoc}
+\label{subsec:nts-havoc}
 Havoc je speciální atomická propozice, jejíž účelem je zamezit samovolné modifikaci proměnných neuvedených ve formuli přechodového pravidla. Ve své podstatě se jedná o syntaktickou zkratku.
-\begin{equation*}
+\begin{equation}
 \texttt{havoc} \left( v_1, v_2, \ldots, v_k \right) = \bigwedge_{v \in V \setminus \{ v_1, v_2, \ldots, v_k \}} v = v\prime
-\end{equation*}
+\end{equation}
 Její význam si můžeme ukázat na následujícím příkladu: uvažme přechodový systém s proměnnými $x,y$ typu int, konfiguraci $s_1 = \tuple{q_1, v_1} \land v_1(x) = 0 \land v_1(y) = 3$, konfiguraci $s_2 = \tuple{q_2, v_2} \land v_2(x) = 1 \land v_2(y) = 5$ a přechod $q_1 \overset{F}{\rightarrow} q_2$. Pokud $F \equiv x' = x + 1$, pak je možné s využitím uvedeného pravidla přejít z konfigurace $q_1$ do konfigurace $q_2$, protože formule $1 = 0 + 1$ je tautologií. Tento přechod ale v rozporu s očekáváním modifikuje proměnnou y. Naopak, pokud $F \equiv x' = x + 1 \land \texttt{havoc}(x)$, potom uvedené pravidlo nelze použít pro přechod z $q_1$ do $q_2$. Po dosazení a expandování \texttt{havoc} totiž vznikne formule $1 = 0 + 1 \land 3 = 5$, která je nesplnitelná.
 
 \subsection{Paralelismus}
-Jazyk NTS umožňuje paralelní běh libovolného konečného vláken, z nichž každé může vykonávat libovolný BasicNts. Počet vláken, stejně jako BasicNts pro každé vlákno, však musí být zvoleny před spuštěním programu a jsou také po celou dobu běhu programu stejné, zejména tedy každé vlákno běží již od začátku běhu programu. Jazyk navíc obsahuje klíčové slovo \texttt{tid}, což je aritmetický term, jehož hodnota identifikuje aktuální vlákno.
+Jazyk NTS umožňuje paralelní běh libovolného konečného počtu vláken. Ke každému vláknu je přiřazen \textit{vstupní bod} (entry point), což je BasicNts, který je vykonáván v kontextu daného vlákna. Paralelní NTS obsahuje specifikaci, tvořenou seznamem dvojic \texttt{vstupní bod [ počet vláken ]}. Identifikátory vláken jsem vláknům přiřazeny vzestupně od nuly, a to ve stejném pořadí, v jakém jsou zadány ve specifikaci.  Uvážíme-li příklad \ref{fig:nts-instances}, paralelní NTS obsahuje $N+1$ vláken, přičemž vstupním bodem vláken s $\texttt{tid} \in \{ 0, \ldots, N - 1 \}$ je BasicBlock \texttt{worker_nts} a vstupním bodem vlákna s $\texttt{tid} = N$ je BasicBlock \texttt{main_nts}.
 
-Každý paralelní NTS obsahuje specifikaci ve tvaru
-\begin{lstlisting}
-instances basic_nts_1[2], basic_nts_2[3*N+4], ... , main_nts[1];
-\end{lstlisting}
-která určuje, jaké subsystémy (BasicNts) budou vykonávány v rámci jakého vlákna. Identifikátory vláken odpovídají pořadí instancí uvedených ve specifikaci. Uvedený příklad způsobí, že dvě vlákna (s \texttt{tid} 0 a 1) budou vykonávat BasicNts basic\_nts\_1, dalších několik vláken (s \texttt{tid} 2, 3, 4, \ldots 3*N+5) bude vykonávat basic\_nts\_2 a vlákno s nejvyšším \texttt{tid} bude vykonávat main\_nts.
-
-\subsection{Příklad}
-Ačkoliv jazyk neumožňuje vkládat do kódu komentáře, pro účely této práce budeme za komentář považovat obsah řádku od znaku '\#' až do konce řádku. Obrázek \ref{NTSL-EX} obsahuje příklad paralelního přechodového systému.
-
-\todo{Dodělat příklad. Konzument může třeba počítat součet nebo zlatý řez.}
 \begin{figure}[h!]
 \begin{lstlisting}
+instances worker_nts[N], main_nts[1];
+\end{lstlisting}
+\caption{Specifikace paralelně vykonávaných vláken v jazyce NTS}
+\label{fig:nts-instances}
+\end{figure}
 
+\subsection{Příklad}
+Na obrázku~\ref{fig:nts-prodcons} se nachází příklad jednoduchého paralelního systému s jedním producentem a jedním konzumentem, reprezentovanými BasicNts \texttt{producent} a \texttt{consument}. Po deklaraci globálních proměnných \texttt{G} a \texttt{c} je uvedena formule, kterou musí splňovat iniciální konfigurace  (viz~\ref{subsec:nts-configuration}) paralelního systému. Systém bude obsahovat dvě vlákna, přičemž vlákno s $\texttt{tid} = 0$ bude vykonávat kód BasicNts \texttt{producent} a vlákno s \texttt{tid} bude vykonávat kód \texttt{consument}.
+
+BasicNts \texttt{producent} obsahuje lokální proměnnou \texttt{i}, která je přechodem z iniciálního stavu \texttt{si} nastavena na hodnotu $0$ a každým dalším přechodem inkrementována. Přechod $\texttt{sl} \rightarrow \texttt{sl}$ se může uskutečnit pouze v případě, že globální proměnná \texttt{c} je nastavena na  hodnotu \texttt{false}, a sám tuto proměnnou nastaví na \texttt{true}. Naopak, přechod $\texttt{sl} \rightarrow \texttt{sl}$ v \texttt{consument} může být vykonán pouze v případě, že $\texttt{c} = \texttt{true}$. Činnost celého systému je taková, že \texttt{producent} postupně do proměnné \texttt{G} ukládá zvyšující se hodnoty, které \texttt{consument} sčítá.
+
+Mimochodem, již zmíněný přechod $\texttt{sl} \rightarrow \texttt{sh}$ v \texttt{consument} ničí hodnotu uloženou v \texttt{G}, což ale nevadí, protože \texttt{G} není nikdy čtena.
+
+\begin{figure}[h!]
+\begin{lstlisting}
 G : int;
-l : bool;
+c : bool;
 init G = 0 && l = false;
 instances producent[1], consument[1];
+
 producent {
     initial si;
     i : integer;
-    
-    si -> sl { i' = 0 && havoc(i) }
+    si -> sl { i' = 0 && havoc(i)          }
+    sl -> sl { c  = false && c' = true  &&
+               G' = i     && i' = i + 1 &&
+               havoc(c, G, i)              }
+}
 
+consument {
+	initial si;
+	sum, x : integer;
+	si -> sl { sum' = 0 && havoc( sum )          }
+	sl -> sh { c = true && x' = G && havoc(x, G) }
+	sh -> sl { sum' = sum + x && c' = false &&
+	           havoc(sum, c)                     }
 }
-add {
-    # Predpokladame x mezi INT_MIN a INT_MAX
-    in x : int;
-    out rv : int;
-    # Pocatecni stav
-    initial si;
-    # Koncovy stav
-    final sf;
-    # Promenna alokovana funkci alloca
-    t1 : int;
-    # Promenne %2 a %3
-    t2,t3 : int;
-    # Pocatecni store
-    si -> s1 {t1' = x and havoc(t1)}
-    # Instrukce load
-    s1 -> s2 {t2' = t1 and havoc(t2)}
-    # Pricitani je slozitejsi, 
-    s2 -> s3 {t2 < INT_MAX and t3' = t2 + 1 and havoc(t3)}
-    s2 -> s3 {t2 = INT_MAX and t3' = INT_MIN and havoc(t3)}
-    # Instrukce ret
-    s3 -> sf {rv' = t3 and havoc(rv)}
-}
+
 \end{lstlisting}
 \caption{Příklad kódu v jazyce NTL}
-\label{NTSL-EX}
+\label{fig:nts-prodcons}
 \end{figure}
 
 \section{Partial Order Reduction}
@@ -266,6 +273,7 @@ Definice relace nezávislosti umožňuje jistou flexibilitu při výběru vhodn�
 
 
 \subsubsection{Ample sety}
+\todo{Popsat pro obyčejnou POR. Navíc funkci A definujeme až u statické POR}
 Pro řídící stav $q_0 = \tuple{q_{0,0}, \ldots, q_{0,k-1}}$ spočítáme $A(q_0)$ následujícím způsobem. Pro každé $0 \leq i < k$ zkusíme položit $A(q_0) = \texttt{outgoing}(q_{0,i})$. Pokud zkoušená množina splňuje podmínky C0 až C3, použijeme jí. Pokud žádná z vyzkoušených množin není použitelná, položíme $A(q_0) = \texttt{outgoing}(q_0)$.
 
 Porušení podmínky C1 \label{subsec:c1-violation} znamená, že v úplném explicitním přechodovém grafu existuje posloupnost $s_0 \xrightarrow{\alpha_0} \ldots \xrightarrow{\alpha_{m-1}} s_m \xrightarrow{\beta} s_{m+1}$, $s_j = (q_j, v_j)$ taková, že $\beta \in \texttt{enabled}(s_l)$, $\beta$ je závislý na nějakém přechodu ve zvoleném $\texttt{ample}(s_0)$ a všechny $\alpha_j$ jsou nezávislé na všech přechodech v $\texttt{ample}(s_0)$. Potom, jak uvádí \cite{CLARKE}, mohou nastat dvě situace.
@@ -286,8 +294,14 @@ V obou případech tedy musí nějaké jiné vlákno obsahovat přechod, který 
 
 \subsection{Pole}
 Nepodporuji (zatím). Přidat podporů některých operací nad poli by ale nemusel být problém
+
 \subsection{Pointery}
-Nestaráme se o pointery
+Překládací nástroj zatím obecně neumí pracovat s ukazateli, zejména nepodporuje pointerovou aritmetiku. Nicméně protože jazyk LLVM pointery hojně využívá, a to zejména pro práci s globálními proměnnými a lokálními zásobníkově alokovanými proměnnými, překládací nástroj umí korektně přeložit několik speciálních případů použití ukazatelů. Mezi ně patří
+\begin{itemize}
+\item čtení a zápis globálních proměnných pomocí instrukcí \texttt{load} a \texttt{store},
+\item čtení a zápis proměnných alokovaných pomocí instrukce \texttt{alloca} a
+\item předávání parametrů funkci \texttt{thread\_create}.
+\end{itemize}
 \paragraph{Ale s proměnnými se pracuje zkrze pointery!}
 
 \subsection{Instrukce}
@@ -438,9 +452,10 @@ Jazyky LLVM IR a NTS implementují paralelismus velice odlišně. Během návrhu
 Volání této funkce se může ve zdrojovém programu vyskytnout kdekoliv, a na umístění a četnost těchto výskytů neklademe žádná omezení. Omezujeme ale možnosti použití této funkce, a to následujícím způsobem:
 
 \begin{enumerate}
+\item První argument musí být ukazatel na globální proměnnou či lokální proměnnou volající funkce.
 \item Argument parametru start\_routine musí být přímo funkce, nikoliv jiný funkční ukazatel.
-\item Všechny ostatní argumenty funkce pthread\_create musí být null.
-\item Návratová hodnota funkce pthread\_create nesmí být použita.
+\item Všechny ostatní argumenty funkce \texttt{pthread\_create} musí být null.
+\item Návratová hodnota funkce \texttt{pthread\_create} nesmí být použita.
 \item Funkce, předaná jako argument parametru start\_routine, nesmí používat svůj parametr.
 \item Návratová hodnota této funkce musí být vždy null.
 \end{enumerate}
@@ -637,7 +652,11 @@ Zatím nepodporuji složitější operace s poli. Také nechápu, jak pracovat s
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \chapter{Experimenty}
-
+\section{Použití implementovaných nástrojů}
+\todo{Tuto část textu bych rád viděl i v příslušných README.md}
+\subsection{Získání}
+\subsection{Kompilace}
+\subsection{Instalace?}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \chapter{Závěr}
