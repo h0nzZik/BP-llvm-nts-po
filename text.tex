@@ -185,7 +185,7 @@ Jazyk NTS (Numerical Transition Systems) je jednoduchý jazyk s~formalizovanou s
 \todo{Zmínit globální proměnné}
 
 \subsection{BasicNts}
-Základní jednotkou NTS je BasicNts, což je samostatný přechodový systém, sestávájící z proměnných, řídících stavů a přechodů mezi nimi. Stavy mohou být označeny jako iniciální, finální a chybové. Přechody jsou tvaru $s_i \overset{R}{\rightarrow} s_j$, kde $R$ je přechodové pravidlo, strážící přechod. Přechod může být vykonán pouze v případě, že je přechodové pravidlo naplněno.
+Základní jednotkou NTS je BasicNts, což je samostatný přechodový systém, sestávájící z proměnných, řídících stavů a přechodů mezi nimi. Řídící stavy mohou být označeny jako iniciální, finální a chybové. Přechody jsou tvaru $s_i \overset{R}{\rightarrow} s_j$, kde $R$ je přechodové pravidlo, strážící přechod, a $s_i, s_j$ řídící stavy. Přechod může být vykonán pouze v případě, že je přechodové pravidlo naplněno.
 
 \subsection{Přechodová pravidla}
 Přechodová pravidla mohou být dvojího druhu: volací pravidlo (například  $(p1',p2') = \texttt{factorize} (x)$) slouží k zavolání jiného BasicNts, předání parametrů volanému a uložení výsledků volání, zatímco formulové pravidlo (například $d' * d' = x$) obsahuje formuli predikátové logiky prvního řádu, jejíž splnění umožňuje přechod do cílového stavu přechodu. 
@@ -201,7 +201,10 @@ Jazyk NTS je vybaven třemi skalárními datovými typy: Int, Bool, Real. Datov�
 
 \subsection{Sémantika}
 \label{subsec:nts-configuration}
-Konfigurací systému se nazývá dvojice $\tuple{q, v}$, kde $q$ je jedním z řídících stavů a $v$ valuace proměnných (tedy funkce, která každé proměnné přiřazuje hodnotu). Přechod z~konfigurace $\tuple{q_1, v_1}$ do konfigurace $\tuple{q_2, v_2}$ je možný, pokud existuje přechodové pravidlo $q_1 \overset{F}{\rightarrow} q_2$ s~následující vlastností: formule vzniklá z~$F$ nahrazením proměnných $p$ hodnotami $v_1(p)$ a~nahrazením proměnných ve tvaru $p^\prime$ hodnotami $v_2(p)$ je tautologií. Formálnější popis je k~dispozici v~\cite{NTSref}.
+
+% Transition rule maps some configuration to another configuration
+\newcommand{\rulemapsto}[1]{\overset{#1}{\mapsto}}
+Konfigurací systému se nazývá dvojice $\tuple{q, v}$, kde $q$ je jedním z řídících stavů a $v$ valuace proměnných (tedy funkce, která každé proměnné přiřazuje hodnotu). Přechod z~konfigurace $c_1 = \tuple{q_1, v_1}$ do konfigurace $c_2 = \tuple{q_2, v_2}$ je možný, pokud existuje přechodové pravidlo $t = \left({q_1 \overset{F}{\rightarrow} q_2}\right)$ s~následující vlastností: formule vzniklá z~$F$ nahrazením proměnných $p$ hodnotami $v_1(p)$ a~nahrazením proměnných ve tvaru $p^\prime$ hodnotami $v_2(p)$ je tautologií. Tuto situace budeme zapisovat jako $c_1 \rulemapsto{t} c_2$. Formálnější popis je k~dispozici v~\cite{NTSref}.
 
 \subsection{Havoc}
 \label{subsec:nts-havoc}
@@ -222,6 +225,8 @@ instances worker_nts[N], main_nts[1];
 \caption{Specifikace paralelně vykonávaných vláken v jazyce NTS}
 \label{fig:nts-instances}
 \end{figure}
+
+
 
 \subsection{Příklad}
 Na obrázku~\ref{fig:nts-prodcons} se nachází příklad jednoduchého paralelního systému s jedním producentem a jedním konzumentem, reprezentovanými BasicNts \texttt{producent} a \texttt{consument}. Po deklaraci globálních proměnných \texttt{G} a \texttt{c} je uvedena formule, kterou musí splňovat iniciální konfigurace  (viz~\ref{subsec:nts-configuration}) paralelního systému. Systém bude obsahovat dvě vlákna, přičemž vlákno s $\texttt{tid} = 0$ bude vykonávat kód BasicNts \texttt{producent} a vlákno s \texttt{tid} bude vykonávat kód \texttt{consument}.
@@ -261,6 +266,7 @@ consument {
 \end{figure}
 
 \section{Partial Order Reduction}
+\label{sec:POR}
 Partial Order Reduction je technika pro redukci stavového prostoru (paralelních) programů, která využívá komutativity paralelně vykonávaných přechodů. Pokud lze efektivně ověřit, že stav programu po vykonání přechodů $\texttt{t}_1$ a $t_2$ nezávisí na jejich pořadí a ověřovaná vlastnost není citlivá na jednotlivé přechody, není třeba uvažovat některé možné běhy. Technika použitá v této práci vychází z techniky popsané v \cite{CLARKE}, úprava POR pro jazyk NTS je popsána v kapitole~\ref{sec:nts-por}.
 
 \subsection{Přechodový systém}
@@ -272,6 +278,10 @@ Přechod $\alpha \in T$ se nazývá deterministický, pokud pro každý stav $s 
 
 \begin{definition}
 Přechod $\alpha \in T$ je povolený ve stavu $s \in S$ (píšeme $\alpha \in \mathit{enabled}(s)$ právě tehdy, když existuje stav $s'$ tak že $s \xrightarrow{t} s'$
+\end{definition}
+
+\begin{definition}
+Cesta ze stavu $s_0$ v přechodovém systému je (potenciálně nekonečná) posloupnost $s_0 \xrightarrow{\alpha_0} s_1 \xrightarrow{\alpha_1} \ldots $ taková, že $\forall i \ldotp \left({ s_i \xrightarrow{\alpha_i} s_{i+1} }\right)$
 \end{definition}
 
 \subsection{Nezávislost a komutativita přechodů}
@@ -340,43 +350,27 @@ a protože relace $I$ je symetrická, musí také platit $\beta \in \mathit{enab
 ve které je ekvivalence s \ref{eq:independent-clarke} zřejmá.
 \end{proof}
 
-Je zřejmé, že pokud pro stav $s = \tuple(q, v)$ a přechod $t$ platí $t \in \texttt{enabled}(s)$, pak $t \in \texttt{outgoing}(q)$. Stavy takové, že vybraný $\texttt{ample}(s) = \texttt{enabled}(s)$, označujeme jako plně expandované.
 
-Technika, použitá v \cite{CLARKE}, tedy partial order reduction s využitím dostatečných (ample) množin, spočívá v tom, že pro každý stav (konfiguraci) paralelního systému je spočítána množina přechodů $\texttt{ample}(s) \subseteq \texttt{enabled}(s)$, která má tu vlastnost, že přechody mimo $\texttt{ample}(s)$ nejsou "důležité". Formálněji řečeno je třeba, aby ke každé cestě v úplném explicitním přechodovém grafu paralelního systému existovala (určitým způsobem) ekvivalentní cesta v tomtéž grafu, která nevyužívá žádné přechody mimo \texttt{ample}. Při konstrukci odpovídajícího sekvenčního systému pak není třeba uvažovat přechody mimo \texttt{ample}, což zmenšuje velikost výsledného sekvenčního systému.
+
+Technika, použitá v \cite{CLARKE}, tedy partial order reduction s využitím dostatečných (ample) množin, spočívá v tom, že pro každý stav přechodového systému je spočítána množina přechodů $\mathit{ample}(s) \subseteq \mathit{enabled}(s)$, která má tu vlastnost, že přechody mimo $\mathit{ample}(s)$ nejsou ,,důležité''. Formálněji řečeno je třeba, aby ke každé cestě z iniciálního stavu přechodového systému existovala vhodným způsobem ekvivalentní\footnote{Jedná se o ,,koktavou'' (stuttering) ekvivalenci, viz \cite{CLARKE}.} cesta z téhož stavu, která nevyužívá žádné přechody mimo $\mathit{ample}$. Při procházení přechodového grafu pak není třeba uvažovat přechody mimo $\mathit{ample}$, což zmenšuje počet stavů, které je nutné prozkoumat během model checkingu.
+
+\begin{definition}
+Přechod je neviditelný, pokud nikdy nezmění platnost atomické propozice z množiny předem vybraných propozic.
+\end{definition}
 
 \subsection{Nutné podmínky}
-Kniha \cite{CLARKE} uvádí několik podmínek, postačují pro zachování korektnosti. Pro připomenutí, ta kniha pracuje pouze s deterministickými přechody. 
+Kniha~\cite{CLARKE} uvádí několik podmínek, postačujících pro volbu vhodného $\mathit{ample}(s)$.
 
 \begin{enumerate}
-\item[C0] $\texttt{ample}(s) = \emptyset \Rightarrow \texttt{enabled}(s) = \emptyset$
-\item[C1] Každá cesta v úplném explicitním přechodovém grafu paralelního systému, začínající ve stavu $s$, má následující vlastnost: pokud přechod $t_2$, který se vyskytuje po cestě, závisí na nějakém přechodu $t_1 \in \texttt{ample}(s)$, pak se před jeho výskytem vyskytuje nějaký přechod $t_1' \in \texttt{ample}(s)$.
-\item[C2] Pokud $s$ není plně expandovaný, pak každý přechod z $\texttt{ample}(s)$ je neviditelný \todo{zadefinovat}.
-\item[C3] Nesmí existovat cyklus, který obsahuje přechod povolený v některém z jeho stavů a neobsažený v žádném z \texttt{ample} stavů cyklu.
+\item[C0] $\mathit{ample}(s) = \emptyset \Rightarrow \mathit{enabled}(s) = \emptyset$
+\item[C1] Každá cesta v úplném explicitním přechodovém grafu paralelního systému, začínající ve stavu $s$, má následující vlastnost: pokud přechod $\beta$, který se vyskytuje po cestě, závisí na nějakém přechodu $\alpha \in \mathit{ample}(s)$, pak se před jeho výskytem vyskytuje nějaký přechod $\alpha' \in \mathit{ample}(s)$.
+\item[C2] Pokud $s$ není plně expandovaný, pak každý přechod z $\mathit{ample}(s)$ je neviditelný.
+\item[C3] Nesmí existovat cyklus, který obsahuje přechod povolený v některém z jeho stavů a neobsažený v žádném z $\mathit{ample}$ stavů cyklu.
 \end{enumerate}
 
-
-\subsection{Jednoduchá heuristika}
-\subsubsection{Nezávislost}
-Definice relace nezávislosti umožňuje jistou flexibilitu při výběru vhodné relace. Za nezávislé budeme považovat ty páry přechodů $(t_1, t_2)$, které splňují obě následující podmínky:
-\begin{itemize}
-\item Přechody $t_1$ a $t_2$ patří ke dvěma různým vláknům.
-\item Neexistuje proměnná, sdílená oběma přechody $t_1$ i $t_2$ a modifikovaná alespoň jedním z nich.
-\end{itemize}
-
-
-\subsubsection{Ample sety}
-\todo{Popsat pro obyčejnou POR. Navíc funkci A definujeme až u statické POR}
-Pro řídící stav $q_0 = \tuple{q_{0,0}, \ldots, q_{0,k-1}}$ spočítáme $A(q_0)$ následujícím způsobem. Pro každé $0 \leq i < k$ zkusíme položit $A(q_0) = \texttt{outgoing}(q_{0,i})$. Pokud zkoušená množina splňuje podmínky C0 až C3, použijeme jí. Pokud žádná z vyzkoušených množin není použitelná, položíme $A(q_0) = \texttt{outgoing}(q_0)$.
-
-Porušení podmínky C1 \label{subsec:c1-violation} znamená, že v úplném explicitním přechodovém grafu existuje posloupnost $s_0 \xrightarrow{\alpha_0} \ldots \xrightarrow{\alpha_{m-1}} s_m \xrightarrow{\beta} s_{m+1}$, $s_j = (q_j, v_j)$ taková, že $\beta \in \texttt{enabled}(s_l)$, $\beta$ je závislý na nějakém přechodu ve zvoleném $\texttt{ample}(s_0)$ a všechny $\alpha_j$ jsou nezávislé na všech přechodech v $\texttt{ample}(s_0)$. Potom, jak uvádí \cite{CLARKE}, mohou nastat dvě situace.
-
-\begin{itemize}
-\item Přechod $\beta$ pochází z vlákna $i$ (tedy $\beta \in \texttt{outgoing}(q_{m,i})$).  Protože $\alpha_j$ jsou nezávislé na $\texttt{ample}(s_0)$, musí pocházet z jiného vlákna než $i$, tedy $q_{0,i} = q_{m,i}$. Protože $\beta \not \in \texttt{ample}(s_0)$, tak $\beta \not \in \texttt{enabled}(s_0)$. V tom případě se ale stavy $s_0$ a $s_m$ liší ve valuaci některých globálních proměnných, které jsou používány přechodem $\beta$, a tedy nějaké vlákno s $tid \neq i$ obsahuje přechod, modifikující proměnnou, která je používána přechodem $\beta$.
-
-\item Pokud $\beta \not \in \texttt{outgoing}(q_{m,i})$, tedy přechod $\beta$ pochází z vlákna jiného než $i$, nějaké jiné vlákno než $i$ obsahuje přechod, který je závislý na nějakém přechodu z $\texttt{ample}(s_0)$. 
-\end{itemize}
-
-V obou případech tedy musí nějaké jiné vlákno obsahovat přechod, který s nějakým přechodem z $\texttt{ample}(s_0)$ sdílí proměnnou, která je modifikována jedním z nich. To se dá snadno ověřit, pokud si například předem pro každé vlákno množinu proměnných v něm použitých.
+\subsection{Výpočet ample(s)}
+\label{subsec:por-compute-ample}
+Podmínku C1 není snadné ověřit; \cite{CLARKE}~dokonce uvádí, že problém ověření podmínky C1 pro jeden stav je alespoň tak těžký, jako problém dosažitelnosti stavu v celém přechodovém systému. Z tohoto důvodu byly navrženy heuristiky, jejichž cílem je pro stav $s$ efektivně zvolit $ample(s)$ tak, aby byly podmínky (nebo alespoň podmínka C1) jistě splněny. Tyto heuristiky silně závisí na použitém modelu výpočtu a proto budou v tomto textu popsány až v sekci~\ref{sec:nts-por} přímo pro jazyk NTS.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -394,9 +388,9 @@ Překládací nástroj zatím obecně neumí pracovat s ukazateli, zejména nepo
 \item čtení a zápis proměnných alokovaných pomocí instrukce \texttt{alloca} a
 \item předávání parametrů funkci \texttt{thread\_create}.
 \end{itemize}
-\paragraph{Ale s proměnnými se pracuje zkrze pointery!}
 
 \subsection{Instrukce}
+Překládací nástroj v současné době podporuje jen velice omezenou množinu instrukcí. Mezi ně patří instrukce pro zápis do a čtení z paměti (load / store), instrukce volání a návratu z funkce (call/ret), instrukce skoků a větvení (br), porovnávací instrukce (icmp, pouze nad neznaménkovými operandy), instrukce pro sčítání čísel (add) a alokaci paměti na zásobníků (alloca).
 Také nepodporuji znaménkovou aritmetiku a hromadu instrukcí. Například znaménkové přetečení při add neošetřuji, přestože je to principiálně možné. Vede to k složitým formulím. Pokud ale bude překladová utilita vyvíjená dále, je to jedna z věcí, která by mohla být volitelná (tedy jestli vracet nedefinovaný výsledek nebo přejít do err stavu nebo pokračovat jako nic). S tím souvisí Poison a Undef values.
 
 \subsection{Znaménkovost}
@@ -667,40 +661,77 @@ Používáme anotace, abychom zjistili, odkud jaká proměnná pochází. Nebo j
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\chapter{Statická Partial Order redukce}
+\chapter{Partial Order redukce pro NTS}
 \label{sec:nts-por}
+Cílem jednoho z nástrojů, vyvíjeného jako součást této práce, je převést paralelní přechodový systém v jazyce NTS na (co nejmenší) ekvivalentní sekvenční systém v témže jazyce. Vytvořený
+\fnurl{nástroj}{https://github.com/h0nzZik/llvm-nts-PartialOrderReduction}
+k tomuto účelu využívá techniku, zvanou Partial Order Redukce, jejíž obecný popis se nachází v kapitole~\ref{sec:POR}. Převod je možné provést i bez použití této techniky, nicméně počet stavů výsledného přechodového systému je v takovém případě veliký.
 
-\section{Obecně k sekvencializaci}
-V rámci zachování jednoduchosti v této části textu používáme o něco jednodušší definice než v \cite{NTSref}, zejména vypouštíme definici valuace proměnných.
+\section{Terminologie a definice}
+Jazyk NTS používá odlišnou terminologii od té, která je použitá pro popis Partial Order redukce v~\cite{CLARKE} a v sekci~\ref{sec:POR}. V kontextu jazyka NTS je hojně používaný pojem \textit{konfigurace}, který označuje dvojici \textit{řídícího stavu} a \textit{valuace} proměnných. Oproti tomu přechodový systém používaný kontextu POR neobsahuje žádné proměnné, a tak každý jeho \textit{stav} vlastně odpovídá \textit{konfiguraci} programu v jazyce NTS. V této části textu budeme používat pojem \textit{řídící stav} pouze ve svém původním významu, pojem \textit{konfigurace} pak bude rozšířen i na popis \textit{stavů} přechodového systému, jak je známe z ~\ref{sec:POR}. Samotný termín \textit{stav} používán nebude, protože jeho použití by mohlo být mírně zavádějící.
 
+Dále pak jazyk NTS používá termínu \textit{přechodové pravidlo}, které je speciálním případem přechodů ze sekce~\ref{sec:POR}. V následujícím textu budeme používat zejména pojmu přechodového pravidla. Funkci a $\mathit{enabled}$ přenášíme do kontextu NTS tak, že pro \textit{konfiguraci} $c=(Q, v)$ paralelního NTS, $\mathit{enabled}(c)$ označuje množinu \textit{přechodových pravidel}, která jsou v konfiguraci $c$ povolená. Obdobným způsobem přenášíme i další funkce, zejména $\mathit{ample}$.
+
+%\section{K sekvencializaci NTS}
+%Pro sekvencializaci přechodového systému v jazyce NTS je
+%V rámci zachování jednoduchosti v této části textu používáme o něco jednodušší definice než v \cite{NTSref}, zejména vypouštíme definici valuace proměnných.
+Protože předpokládáme, že přechodový systém v jazyce NTS, který míníme sekvencializovat, je plochý, můžeme si dovolit pracovat s jednodušší definicí konfigurace paralelního systému, než jaká je k dispozici v \cite{NTSref}.
 \begin{definition}
-Řídící stav plochého paralelního NTS s k vlákny je k-tice $q = \tuple{q_0, \ldots, q_{k-1}}$, kde $q_i$ je řídící stav BasicNts, který je vykonáván ve vlákně s $\texttt{tid} = i$.
+Řídící stav plochého paralelního NTS s k vlákny je k-tice $Q = \tuple{q_0, \ldots, q_{k-1}}$, kde $q_i$ je řídící stav BasicNts, který je vykonáván ve vlákně s $\texttt{tid} = i$.
 \end{definition}
-%V souladu s tím, co bylo řečeno v úvodu \todo{říci to v úvodu}, řídící stavy sekvencializovaného NTS nenesou informaci o valuaci datových proměnných. \todo{Pokud ano, tak pouze pro optimalizaci - v budoucnu.}
-S každým řídícím stavem $q$ paralelního NTS je spojena množina přechodů $\texttt{Outgoing}(q)$, vedoucích z tohoto stavu.
+
+Pro každý řídící stav $q$ nějakého BasicNts označíme množinu přechodů, vedoucí ze stavu $q$, jako $\mathit{outgoing}(q)$. Tuto definici pak rozšíříme na řídící stav $Q$ plochého paralelního systému následovně:
 \begin{equation}
-\texttt{outgoing}(q) = \texttt{outgoing}(q_0) \cup \ldots \cup \texttt{outgoing}(q_{k-1})
+\mathit{outgoing}(Q) = \mathit{outgoing}(q_0) \cup \ldots \cup \mathit{outgoing}(q_{k-1})
 \end{equation}
 
 \begin{definition}
-Stav $s$ paralelního přechodového systému je dvojice $s = \tuple{q, v}$, kde $v$ je řídící stav daného systému a $v$ značí valuaci (globálních i všech lokálních) proměnných.
+\textit{Konfigurace} $c$ plochého paralelního přechodového systému jazyka NTS je dvojice $c = \tuple{Q, v}$, kde $Q$ je řídící stav daného systému a $v$ značí valuaci (globálních i všech lokálních) proměnných.
 \end{definition}
-Referenční manuál označujuje právě definovaný stav jako "konfiguraci".
 
-\todo{Formálněji, odkaz do manuálu}
 \begin{definition}
-Pro libovolný přechod $t$ a stavy $s_1, s_2$ paralelního systému, zápisem $s_1 \xrightarrow{t} s_2$ rozumíme, že je možné dostat se ze stavu $s_1$ do stavu $s_2$ pomocí přechodu $t$. Zápisem
+Pro libovolné přechodové pravidlo $t$ a konfigurace $c_1 = \tuple{Q_1, v_1}$, $c_2=\tuple{Q_2, v_2}$, $Q_1 = \tuple{q_{1,1}, \ldots, q_{1, m}}$, $Q_2 = \tuple{q_{2,1}, \ldots, q_{2, m}}$ paralelního systému, zápisem $c_1 \rulemapsto{t} c_2$ rozumíme, že je možné provést přechod ze stavu $c_1$ do stavu $c_2$ pomocí přechodového pravidla $t$. To může nastat právě tehdy, pokud existuje $i$ takové, že
+\begin{equation}
+q_{1,i} \rulemapsto{t} q_{1,j} \land \bigwedge_{j \neq i}\left({q_{1,j} = q_{1,i}}\right)
+\end{equation}
+Zápisem
 \begin{equation*}
-s_1 \xrightarrow{t_1} s_2 \xrightarrow{t_2} \ldots \xrightarrow{t_{m-1}} s_m
+c_1 \rulemapsto{t_1} c_2 \rulemapsto{t_2} \ldots \rulemapsto{t_{m-1}} c_m
 \end{equation*}
 zkracujeme konjunkci
 \begin{equation*}
-s_1 \xrightarrow{t_1} s_2 \land \ldots \land s_{m-1} \xrightarrow{t_{m-1}} s_m
+c_1 \rulemapsto{t_1} c_2 \land \ldots \land c_{m-1} \rulemapsto{t_{m-1}} c_m
 \end{equation*}
 \end{definition}
 
-\section{Použití POR bez znalosti dat - statické}
+%Je zřejmé, že pokud pro stav $s = \tuple(q, v)$ a přechodové pravidlo $t$ platí $t \in \texttt{enabled}(s)$, pak $t \in \texttt{outgoing}(q)$. Stavy takové, že vybraný $\texttt{ample}(s) = \texttt{enabled}(s)$, označujeme jako plně expandované.
+
+\section{Heuristika}
+Jak již bylo řečeno v sekci~\ref{subsec:por-compute-ample}, heuristika výpočet $\mathit{ample}$ množin je závislá na zvoleném modelu výpočtu. Model výpočtu použití v \cite{CLARKE} se NTS podobá, proto heuristiky tam uvedené tvoří základ heuristiky pro NTS, jak je popsána v této sekci.
+
+\subsection{Nezávislost}
+Definice relace nezávislosti umožňuje jistou flexibilitu při výběru vhodné relace. Za nezávislé budeme považovat ty páry přechodů $\tuple{t_1, t_2}$, které splňují obě následující podmínky:
+\begin{itemize}
+\item Přechody $t_1$ a $t_2$ patří ke dvěma různým vláknům.
+\item Neexistuje proměnná, sdílená oběma přechody $t_1$ i $t_2$ a modifikovaná alespoň jedním z nich.
+\end{itemize}
+
+\subsection{Ample sety}
+Porušení podmínky C1 \label{subsec:c1-violation} znamená, že v úplném explicitním přechodovém grafu paralelního NTS existuje posloupnost $c_0 \rulemapsto{\alpha_0} \ldots \rulemapsto{\alpha_{m-1}} c_m \rulemapsto{\beta} s_{m+1}$, $c_j = (Q_j, v_j)$ taková, že $\beta \in \mathit{enabled}(c_l)$, $\beta$ je závislé na nějakém přechodovém pravidlu ve zvoleném $\mathit{ample}(c_0)$ a všechna $\alpha_j$ jsou nezávislá na všech pravidlech v $\mathit{ample}(c_0)$. Potom, jak uvádí \cite{CLARKE}, mohou nastat dvě situace.
+
+\begin{itemize}
+\item Pravidlo $\beta$ pochází z vlákna $i$ (tedy $\beta \in \mathit{outgoing}(q_{m,i})$).  Protože $\alpha_j$ jsou nezávislá na $\mathit{ample}(c_0)$, musí pocházet z jiného vlákna než $i$, tedy $q_{0,i} = q_{m,i}$. Protože $\beta \not \in \mathit{ample}(c_0)$, tak $\beta \not \in \mathit{enabled}(c_0)$. V tom případě se ale konfigurace $c_0$ a $c_m$ liší ve valuaci některých globálních proměnných, které jsou používány přechodovým pravidlem $\beta$, a tedy nějaké vlákno s $tid \neq i$ obsahuje přechodové pravidlo, modifikující proměnnou, která je používána pravidlem $\beta$.
+
+\item Pokud $\beta \not \in \mathit{outgoing}(q_{m,i})$, tedy pravidlo $\beta$ pochází z vlákna jiného než $i$, nějaké jiné vlákno než $i$ obsahuje pravidlo, které je závislé na nějakém pravidle z $\mathit{ample}(s_0)$.
+\end{itemize}
+
+V obou případech tedy musí nějaké jiné vlákno obsahovat přechodové pravidlo, které s nějakým pravidlem z $\mathit{ample}(c_0)$ sdílí proměnnou, která je modifikována jedním z nich. To se dá snadno ověřit, pokud si například předem pro každé vlákno množinu proměnných v něm použitých.
+
+
+\section{Statická POR}
 Navazuje na POR vysvětlenou dříve. Jak tedy POR upravit tak, aby fungovalo staticky.
+
+Pro řídící stav $q_0 = \tuple{q_{0,0}, \ldots, q_{0,k-1}}$ spočítáme $A(q_0)$ následujícím způsobem. Pro každé $0 \leq i < k$ zkusíme položit $A(q_0) = \texttt{outgoing}(q_{0,i})$. Pokud zkoušená množina splňuje podmínky C0 až C3, použijeme jí. Pokud žádná z vyzkoušených množin není použitelná, položíme $A(q_0) = \texttt{outgoing}(q_0)$.
 
 
 Uvedené podmínky se vztahují k explicitnímu CFG, zatímco náš nástroj generuje symbolický CFG a o proměnných si mnoho informací neudržuje. Protože $\texttt{ample}(s) \subseteq \texttt{enabled}(s)$, nemůžeme generovat ample sety přímo: museli bychom totiž rozhodnout, zda je nějaký z přechodů v daném stavu povolený. Náš nástroj namísto toho pro \textit{řídící} stav (tedy nikoliv konfiguraci) $q$ paralelního systému spočítá množinu $A(q) \subseteq \texttt{outgoing}(q)$ tak, že pro libovolný stav (konfiguraci) $s = (q, v)$ můžeme položit $\texttt{ample}(s) = A(q) \cap \texttt{enabled}(s)$.
