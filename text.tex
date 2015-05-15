@@ -33,7 +33,9 @@
 \title{LLVM PO}
 
 \newtheorem{definition}{Definice}
-\newtheorem{decision}{Rozhodnutí}
+\newtheorem{lemma}     {Lemma}
+%\newtheorem{proof}     {Důkaz}
+\newtheorem{decision}  {Rozhodnutí}
 
 \newcommand{\tuple}[1]{\langle #1 \rangle}
 \newcommand{\suchthat}{\mid}
@@ -228,7 +230,7 @@ BasicNts \texttt{producent} obsahuje lokální proměnnou \texttt{i}, která je 
 
 Mimochodem, již zmíněný přechod $\texttt{sl} \rightarrow \texttt{sh}$ v \texttt{consument} ničí hodnotu uloženou v \texttt{G}, což ale nevadí, protože \texttt{G} není nikdy čtena.
 
-\begin{figure}[h!]
+\begin{figure}[t]
 \begin{lstlisting}
 G : int;
 c : bool;
@@ -259,19 +261,85 @@ consument {
 \end{figure}
 
 \section{Partial Order Reduction}
-Partial Order Reduction je technika pro redukci stavového prostoru (paralelních) programů, která využívá komutativity paralelně vykonávaných přechodů. Pokud lze efektivně ověřit, že stav programu po vykonání přechodů $\texttt{t}_1$ a $t_2$ nezávisí na jejich pořadí a ověřovaná vlastnost není citlivá na jednotlivé přechody, není třeba uvažovat některé možné běhy. Technika použitá v této práci vychází z techniky popsané v \cite{CLARKE}.
+Partial Order Reduction je technika pro redukci stavového prostoru (paralelních) programů, která využívá komutativity paralelně vykonávaných přechodů. Pokud lze efektivně ověřit, že stav programu po vykonání přechodů $\texttt{t}_1$ a $t_2$ nezávisí na jejich pořadí a ověřovaná vlastnost není citlivá na jednotlivé přechody, není třeba uvažovat některé možné běhy. Technika použitá v této práci vychází z techniky popsané v \cite{CLARKE}, úprava POR pro jazyk NTS je popsána v kapitole~\ref{sec:nts-por}.
+
+\subsection{Přechodový systém}
+\textit{Stavový přechodový systém} je čtveřice $\tuple{S, T, S_0, L}$, kde $S$ představuje množinu stavů, $T \subseteq \mathcal{P}\left({S \times S}\right)$ množinu přechodových relací (dále zkráceně jen přechodů), $S_0 \in S$ označuje iniciální stav a $L : S \rightarrow \mathcal{P}\left({\mathit{AP}}\right)$ je značkovací funkce, která každému stavu přiřazuje množinu atomických propozic. Jako syntaktickou zkratku za $\tuple{s_1, s_2} \in \alpha$, kde $\alpha \in T$, zavádíme $s_1 \xrightarrow{\alpha} s_2$.
+
+Přechod $\alpha \in T$ se nazývá deterministický, pokud pro každý stav $s \in S$ existuje nejvýše jeden stav $s\prime \in S$ takový, že $s \xrightarrow{\alpha} s\prime$ je splněno. Pro takový přechod můžeme zkráceně psát $s\prime = \alpha(s)$. Zatímco v \cite{CLARKE} jsou uvažovány pouze přechodové systémy s deterministickými přechody, v této práci uvažujeme přechody obecně nedeterministické.
+
+%Vyžadujeme, aby prvky \mathit{T} musí být vzájemně disjunktní, tedy aby mezi každou dvojicí stavů existoval nejvýše jeden přechod\footnote{Tento požadavek v \cite{CLARKE} chybí.}.
+
+\begin{definition}
+Přechod $\alpha \in T$ je povolený ve stavu $s \in S$ (píšeme $\alpha \in \mathit{enabled}(s)$ právě tehdy, když existuje stav $s'$ tak že $s \xrightarrow{t} s'$
+\end{definition}
 
 \subsection{Nezávislost a komutativita přechodů}
-Na rozdíl od \cite{CLARKE} nevyžadujeme, aby přechodová pravidla byla (datově) deterministická. Všechny přechody v NTS již jsou kontrolně deterministické. Nezávislost přechodů tedy definujeme mírně odlišně.
-\begin{definition}
-Binární relace $I$ na přechodech paralelního NTS nazýváme relací nezávislosti, pokud je symetrická, antireflexivní a splňuje následující požadavek:
-Pro libovolné přechody $(t_1, t_2) \in I$ a libovolné stavy (konfigurace v NTS) $s_1, s_2, s_3$ takové, že  $s_1 \xrightarrow{t_1} s_2 \xrightarrow{t_2} s_3$ existuje stav $s_2'$ takový, že $s_1 \xrightarrow{t_2} s_2' \xrightarrow{t1} s_3$.
-\end{definition}
-Pro NTS bez nedeterministických přechodů je tato definice shodná s definicí v \cite{CLARKE}.
 
 \begin{definition}
-Přechod $t$ je povolený ve stavu (konfiguraci) $s$ (píšeme $t \in \texttt{enabled}(s)$ právě tehdy, když existuje stav $s'$ tak že $s \xrightarrow{t} s'$
+Binární relace $I \subseteq T \times T$ nazýváme relací nezávislosti, pokud je symetrická, antireflexivní a pro libovolnou dvojici přechodů $(\alpha, \beta) \in I$ povolených ve stavu $s \in S$ platí:
+\begin{equation}\label{eq:independent-my}
+\begin{split}
+&\forall s_2 \in S \ldotp
+\left({
+	s \xrightarrow{\beta} s_2
+	\Rightarrow
+	\alpha \in \mathit{enabled}\left({s_2}\right)
+}\right)
+\land \\
+&\forall s_2, s_3 \in S \ldotp \left({
+	s_1 \xrightarrow{\beta} s_2 \xrightarrow{\alpha} s_3
+	\Rightarrow
+	\exists s_2' \in S \ldotp \left({
+		s \xrightarrow{\alpha} s_2' \xrightarrow{\beta} s_3
+	}\right)
+}\right)
+\end{split}
+\end{equation}
 \end{definition}
+
+
+Odpovídající definice v \cite{CLARKE} požaduje (kromě symetrie a antireflexivity), aby pro každou dvojici přechodů $\tuple{\alpha, \beta} \in I$ povolených ve stavu $s \in S $ platilo:
+\begin{equation}\label{eq:independent-clarke}
+\alpha \in \mathit{enabled}\left({ \beta\left({s}\right) }\right) \land
+\alpha\left({\beta\left({s}\right)}\right) = \beta\left({\alpha\left({s}\right)}\right)
+\end{equation}
+
+\begin{lemma}
+Pro přechodové systémy bez nedeterministických přechodů jsou obě definice ekvivalentní.
+\end{lemma}
+
+\begin{proof}
+Formule~\ref{eq:independent-my} i~\ref{eq:independent-clarke} se vyjadřují o stejné množině přechodů, pro důkaz lemmatu stačí dokázat ekvivalenci těchto formulí pro deterministické přechody. Protože $\beta \in \mathit{enabled}(s)$ je deterministická, existuje právě jeden stav $s_2$ takový, že $s \xrightarrow{\beta} s_2$, a to $s_2 = \beta\left({s}\right)$. Formuli~\ref{eq:independent-my} tedy můžeme přepsat jako
+
+\begin{equation}
+\begin{split}
+& \alpha \in \mathit{enabled}\left({\beta\left({s}\right)}\right)
+\land \\
+&\forall s_3 \in S \ldotp \left({
+	\beta\left({s}\right) \xrightarrow{\alpha} s_3
+	\Rightarrow
+	\exists s_2' \in S \ldotp \left({
+		s \xrightarrow{\alpha} s_2' \xrightarrow{\beta} s_3
+	}\right)
+}\right)
+\end{split}
+\end{equation}
+Protože požadujeme $\alpha \in \mathit{enabled}\left({\beta\left({s}\right)}\right)$ a uvažujeme pouze deterministické přechody, opět existuje pouze jeden takový stav $s_3$, a to $s_3 = \alpha{\left({\beta\left({s}\right)}\right)}$. Vhodný stav $s_2'$ také může být pouze jeden, a to právě $\alpha\left({s}\right)$. Formuli můžeme opět zjednodušit na
+\begin{equation}
+\alpha \in \mathit{enabled}\left({\beta\left({s}\right)}\right)
+\land
+\alpha\left({s}\right) \xrightarrow{\beta} \alpha{\left({\beta\left({s}\right)}\right)}
+\end{equation}
+a protože relace $I$ je symetrická, musí také platit $\beta \in \mathit{enabled}\left({\alpha\left({s}\right)}\right)$, tedy výraz $\beta\left({\alpha\left({s}\right)}\right)$ je dobře definovaný, díky čemuž můžeme formuli zjednodušit do podoby
+\begin{equation}
+\alpha \in \mathit{enabled}\left({\beta\left({s}\right)}\right)
+\land
+\beta\left({\alpha\left({s}\right)}\right) = \alpha{\left({\beta\left({s}\right)}\right)}
+\end{equation}
+ve které je ekvivalence s \ref{eq:independent-clarke} zřejmá.
+\end{proof}
+
 Je zřejmé, že pokud pro stav $s = \tuple(q, v)$ a přechod $t$ platí $t \in \texttt{enabled}(s)$, pak $t \in \texttt{outgoing}(q)$. Stavy takové, že vybraný $\texttt{ample}(s) = \texttt{enabled}(s)$, označujeme jako plně expandované.
 
 Technika, použitá v \cite{CLARKE}, tedy partial order reduction s využitím dostatečných (ample) množin, spočívá v tom, že pro každý stav (konfiguraci) paralelního systému je spočítána množina přechodů $\texttt{ample}(s) \subseteq \texttt{enabled}(s)$, která má tu vlastnost, že přechody mimo $\texttt{ample}(s)$ nejsou "důležité". Formálněji řečeno je třeba, aby ke každé cestě v úplném explicitním přechodovém grafu paralelního systému existovala (určitým způsobem) ekvivalentní cesta v tomtéž grafu, která nevyužívá žádné přechody mimo \texttt{ample}. Při konstrukci odpovídajícího sekvenčního systému pak není třeba uvažovat přechody mimo \texttt{ample}, což zmenšuje velikost výsledného sekvenčního systému.
@@ -529,7 +597,7 @@ int main ( void ) {
 \item Můžeme omezit množinu vstupních programů na ty, kde se všechny výskyty volání funkce \texttt{pthread\_create} nachází v hlavní funkci před výskytem prvního cyklu. Takových výskytů bude konečně mnoho a protože každý z nich může být řízením navštívený nejvýše jednou, snadno získáme hodnotu nejvyššího počtu souběžně běžících vláken. Potom můžeme pro každý výskyt volání funkce \texttt{pthread\_create} vytvořit jedno vlákno, jehož vstupní bod odpovídá předávané funkci. Pokud by se navíc první přístup na globální proměnné způsobený hlavní funkcí vyskytoval až po posledním volání \texttt{pthread\_create}, mohli bychom spustit všechna vlákna paralelně s funkcí main. Na obrázku~\ref{fig:llvm2nts:simple-c:simple-nts} je znázorněno, jak by mohl vypadat přeložený kód programu z obrázku~\ref{fig:llvm2nts:simple-c:orig}.
 
 
-\begin{figure}[h]
+\begin{figure}[t]
 \begin{lstlisting}
 instances main[1], p1[1], p2[1];
 en1, en2 : bool;
@@ -555,7 +623,7 @@ main {
 \end{enumerate}
 
 
-\begin{figure}[h]
+\begin{figure}[t]
 \begin{lstlisting}
 instances worker[2], main[1];
 sel[2] : int;
@@ -600,6 +668,7 @@ Používáme anotace, abychom zjistili, odkud jaká proměnná pochází. Nebo j
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \chapter{Statická Partial Order redukce}
+\label{sec:nts-por}
 
 \section{Obecně k sekvencializaci}
 V rámci zachování jednoduchosti v této části textu používáme o něco jednodušší definice než v \cite{NTSref}, zejména vypouštíme definici valuace proměnných.
@@ -791,11 +860,11 @@ Flatac využívá knihovnu
 od stejného autora, která je (jak název napovídá) napsaná v jazyce OCaml.
 
 \section{Volba implementačního jazyka a knihoven}
-Pro implementaci překládacího nástroje jsme se rozhodli zvolit jazyk C++; hlavním důvodem této volby byla skutečnost, že knihovna LLVM je sama implementována v C++. Přestože existují vazby LLVM na D, Rust, Haskell, OCaml i další jazyky, tyto mohou být vydávány se zpožděním oproti LLVM, a my jsme zamýšleli držet se nejnovější verze LLVM. Dále, na Fakultě Informatiky Masarykovy Univerzity probíhá vývoj nástroje pro model checking s názvem DiVinE, který je implementován v C++, a implementace knihovny pro paměťovou reprezentaci jazyka NTS v jazyce C++ může později umožnit snadnější přidání podpory NTS právě do nástroje DiVinE. V neposlední řadě hrála roli také zkušenost autora s vývojem v jazyce C/C++.
+Pro implementaci překládacího nástroje jsme se rozhodli zvolit jazyk C++; hlavním důvodem této volby byla skutečnost, že knihovna LLVM je sama implementována v C++. Přestože existují vazby LLVM na D, Rust, Haskell, OCaml i další jazyky, tyto mohou být vydávány se zpožděním oproti LLVM, a my jsme zamýšleli držet se nejnovější verze LLVM. Dále, na Fakultě Informatiky Masarykovy Univerzity probíhá vývoj nástroje pro model checking s názvem DiVinE, který je implementován v C++, a implementace knihovny pro paměťovou reprezentaci jazyka NTS v jazyce C++ může později umožnit snadnější přidání podpory NTS právě do nástroje DiVinE\cite{BBH+13}. V neposlední řadě hrála roli také zkušenost autora s vývojem v jazyce C/C++.
 \subsection{•}
 
 \section{Knihovna libNTS}
-Jak je vidět z úvodu a předchozích kapitol, celá práce je složená s nástrojů pracujících s přechodovým systémem vyjádřeným v jazyce NTS. Z toho důvodu je vhodné, aby tyto nástroje používaly stejnou paměťovou reprezentaci. Aby mohly být nástroje do určité míry odděleny, tato reprezentace by měla být k dispozici ve formě knihovny.
+Jak je vidět z úvodu a předchozích kapitol, celá práce je složená z nástrojů pracujících s přechodovým systémem vyjádřeným v jazyce NTS. Z toho důvodu je vhodné, aby tyto nástroje používaly stejnou paměťovou reprezentaci. Aby mohly být nástroje do určité míry odděleny, tato reprezentace by měla být k dispozici ve formě knihovny.
 
 Přestože již některé nástroje pro jazyk NTS existují, v době psaní této práce nám nebyla známa existence žádné NTS knihovny s vazbou na C++. Z toho důvodu vznikla knihovna
 \fnurl{libNTS}{https://github.com/h0nzZik/libNTS_cpp}
