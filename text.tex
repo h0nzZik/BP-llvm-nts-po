@@ -359,6 +359,7 @@ Přechod je neviditelný, pokud nikdy nezmění platnost atomické propozice z m
 \end{definition}
 
 \subsection{Nutné podmínky}
+\label{subsec:por:ample-conditions}
 Kniha~\cite{CLARKE} uvádí několik podmínek, postačujících pro volbu vhodného $\mathit{ample}(s)$.
 
 \begin{enumerate}
@@ -725,19 +726,43 @@ Porušení podmínky C1 \label{subsec:c1-violation} znamená, že v úplném exp
 \item Pokud $\beta \not \in \mathit{outgoing}(q_{m,i})$, tedy pravidlo $\beta$ pochází z vlákna jiného než $i$, nějaké jiné vlákno než $i$ obsahuje pravidlo, které je závislé na nějakém pravidle z $\mathit{ample}(s_0)$.
 \end{itemize}
 
-V obou případech tedy musí nějaké jiné vlákno obsahovat přechodové pravidlo, které s nějakým pravidlem z $\mathit{ample}(c_0)$ sdílí proměnnou, která je modifikována jedním z nich. To se dá snadno ověřit, pokud si například předem pro každé vlákno množinu proměnných v něm použitých.
+V obou případech tedy musí nějaké jiné vlákno obsahovat přechodové pravidlo, které s nějakým pravidlem z $\mathit{ample}(c_0)$ sdílí proměnnou, která je modifikována jedním z nich. To se dá snadno ověřit, pokud si například předem pro každé vlákno napočítáme množinu proměnných v něm použitých. Přirozenou možností volby $\mathit{ample}(c_0)$ je množina všech povolených přechodů nějakého vlákna, tedy $\mathit{enabled}(c_0) \cup \mathit{outgoing}(q_{0, i})$. Pokud žádná taková volba neuspěje, konfiguraci plně expandujeme, tedy položíme $\mathit{ample}(c_0) = \mathit{enabled}(c_0)$.
 
+\todo{Zminit ze volime prechody z jednoho procesu}
 
 \section{Statická POR}
-Navazuje na POR vysvětlenou dříve. Jak tedy POR upravit tak, aby fungovalo staticky.
+Partial Order redukce bývá často implementována v model checkeru, který ji používá až během vlastní procedury model checkingu. Naším cílem je však provést redukci bez zkoumání stavového prostoru, jde nám pouze on sekvencializaci control flow. Tato varianta partial order redukce se nazývá statická \cite{SPOR}.
 
-Pro řídící stav $q_0 = \tuple{q_{0,0}, \ldots, q_{0,k-1}}$ spočítáme $A(q_0)$ následujícím způsobem. Pro každé $0 \leq i < k$ zkusíme položit $A(q_0) = \texttt{outgoing}(q_{0,i})$. Pokud zkoušená množina splňuje podmínky C0 až C3, použijeme jí. Pokud žádná z vyzkoušených množin není použitelná, položíme $A(q_0) = \texttt{outgoing}(q_0)$.
+To znamená, že nástroj nebude pracovat s konfiguracemi paralelního NTS, ale pouze s řídícími stavy, a z toho důvodu nebude přímo počítat $\mathit{ample}(c)$ konfigurace $c$. Pro řídící stav paralelního NTS se pokusíme spočítat množinu hran z tohoto stavu vycházejících tak, aby tyto hrany při libovolné valuaci proměnných tvořili platnou ample množinu. Formálněji, pro $Q = \tuple{q_{0}, \ldots, q_{k-1}}$ spočítáme $A(Q) \subseteq \mathit{outgoing}(Q)$ tak, aby $\forall v$ množina $A(Q) \cap \mathit{enabled}\left({\tuple{Q, v}}\right)$ byla platnou ample množinou v konfiguraci $\tuple{Q,v}$. V souladu s výše uvedenou heuristikou budeme za $A(Q)$ zkoušet použít $\mathit{outgoing}(q_i)$ nějakého vlákna $i$.
+
+Zbývá tedy určit, kdy můžeme množinu $\mathit{outgoing}(q_i)$ za $A(Q)$. Každá odvozená ample množina musí splňovat zmíněné podmínky \ref{subsec:por:ample-conditions} C0 až C3.
+\begin{enumerate}
+	\item[ad C0] Pro libovolnou valuaci $v$, pokud $\mathit{enabled}(\tuple{Q,v}) \neq \emptyset$, pak $\mathit{enabled}(\tuple{q_i,v}) \neq \emptyset$, tedy některé z přechodových pravidel v $\mathit{outgoing}(q_i)$ musí být povolené. Podmínku můžeme mírně zjednodušit (a zpřísnit) tak, že budeme požadovat, aby $\mathit{outgoing}(q_i) \neq \emptyset$ a navíc pro libovolnou\footnote{Tedy nejen takovou, že nějaké z pravidel nějakého vlákna je povolené, ale libovolnou.} valuaci $v$ nějaké přechodové pravidlo $t \in \mathit{outgoing}(q_i)$ bylo splnitelné. Tuto podmínku je možné vyřešit za použití externího solveru.
+
+	Zajímavá může být otázka, jak často může v praxi docházet k porušení této podmínky, pokud budeme uvažovat přechodové systémy, vzniklé překladem z LLVM IR. Pravidla, vzniklá překladem vnitřní instrukce BasicBlocku, budou splnitelná téměř vždy: tyto instrukce totiž obvykle zapisují spočítaný výsledek do registru nebo paměti. Pravidla, vzniklá z instrukcí terminujících BasicBlock, se obvykle budou vyskytovat po skupinách, z nichž alespoň jedno bude splnitelné. Naopak, podmínce budou nevyhovovat zejména pravidla, čekající na změnu nějaké globální proměnné, která jsou obsažena ve vstupních bodech pracovních vláknech, nebo pravidla vzniklá možným překladem funkce \texttt{pthread\_join} či funkce pro práci se synchronizačními primitivy.
+
+	Další možností je zesílit podmínku ještě více a požadovat, aby alespoň jedno z pravidel bylo povolené vždy. K potvrzení toho, že pravidlo splňuje takto zpřísněnou podmínku, stačí jednoduchá syntaktická analýza jeho formule. To pravidlo, jehož formule splňuje všechny následující požadavky, je jistě vždy povolené.
+	\begin{itemize}
+		\item Formule je složena výhradně z konjunkcí atomických propozic.
+		\item Každá atomická propozice je buď havoc, relace nebo zápis do pole.
+		\item Každá relace má jako jeden z termů čárkovanou (primed) proměnnou.
+		\item Formule obsahuje havoc, který obsahuje všechny proměnné formule, které se v ní vyskytují čárkované (včetně případného pole, do něhož je zapisováno).
+		\item Každá čárkovaná proměnná se ve formuli vyskytuje nejvýše jednou.
+	\end{itemize}
+	Opět, velká část vnitřních instrukcí se překládá na přechody s formulí, která těmto pravidlům vyhovuje
+
+\item[ad C1]
+
+\item[ad C2]
+
+\item[ad C3]
+
+\end{enumerate}
 
 
-Uvedené podmínky se vztahují k explicitnímu CFG, zatímco náš nástroj generuje symbolický CFG a o proměnných si mnoho informací neudržuje. Protože $\texttt{ample}(s) \subseteq \texttt{enabled}(s)$, nemůžeme generovat ample sety přímo: museli bychom totiž rozhodnout, zda je nějaký z přechodů v daném stavu povolený. Náš nástroj namísto toho pro \textit{řídící} stav (tedy nikoliv konfiguraci) $q$ paralelního systému spočítá množinu $A(q) \subseteq \texttt{outgoing}(q)$ tak, že pro libovolný stav (konfiguraci) $s = (q, v)$ můžeme položit $\texttt{ample}(s) = A(q) \cap \texttt{enabled}(s)$.
 
-\paragraph{Problém s C0}
-Pokud zvolíme A neprázdné tak, že je dosažitelný stav, kdy žádný přechod z A nebude proveditelný, ale nějaký přechod mimo A ano, pak dojde k porušení C0. Toto je ale problém pouze pro obecné NTS, protože přechody překládané z LLVM IR jsou vždy proveditelné. \todo{To není tak docela pravda - viz například podmíněné skoky. Ale dost možná je pravda, že vždycky bude alespoň jeden přechod z daného stavu uskutečnitelný.}
+%\paragraph{Problém s C0}
+%Pokud zvolíme A neprázdné tak, že je dosažitelný stav, kdy žádný přechod z A nebude proveditelný, ale nějaký přechod mimo A ano, pak dojde k porušení C0. Toto je ale problém pouze pro obecné NTS, protože přechody překládané z LLVM IR jsou vždy proveditelné. \todo{To není tak docela pravda - viz například podmíněné skoky. Ale dost možná je pravda, že vždycky bude alespoň jeden přechod z daného stavu uskutečnitelný.}
 
 
 
