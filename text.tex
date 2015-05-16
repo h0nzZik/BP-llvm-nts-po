@@ -299,7 +299,7 @@ consument {
 
 \section{Partial Order Reduction}
 \label{sec:POR}
-Partial Order Reduction je technika pro redukci stavového prostoru (paralelních) programů, která využívá komutativity paralelně vykonávaných přechodů. Pokud lze efektivně ověřit, že stav programu po vykonání přechodů $\texttt{t}_1$ a $t_2$ nezávisí na jejich pořadí a ověřovaná vlastnost není citlivá na jednotlivé přechody, není třeba uvažovat některé možné běhy. Technika použitá v této práci vychází z techniky popsané v \cite{CLARKE}, úprava POR pro jazyk NTS je popsána v kapitole~\ref{sec:nts-por}.
+Partial Order Reduction je technika pro redukci stavového prostoru (paralelních) programů, která využívá komutativity paralelně vykonávaných přechodů. Pokud lze efektivně ověřit, že stav programu po vykonání přechodů $\texttt{t}_1$ a $t_2$ nezávisí na jejich pořadí a ověřovaná vlastnost není citlivá na volbu jednotlivých přechodů, není třeba uvažovat některé dosažitelné stavy. Technika použitá v této práci vychází z techniky popsané v \cite{CLARKE}, úprava POR pro jazyk NTS je popsána v kapitole~\ref{sec:nts-por}.
 
 \subsection{Přechodový systém}
 \textit{Stavový přechodový systém} je čtveřice $\tuple{S, T, S_0, L}$, kde $S$ představuje množinu stavů, $T \subseteq \mathcal{P}\left({S \times S}\right)$ množinu přechodových relací (dále zkráceně jen přechodů), $S_0 \in S$ označuje iniciální stav a $L : S \rightarrow \mathcal{P}\left({\mathit{AP}}\right)$ je značkovací funkce, která každému stavu přiřazuje množinu atomických propozic. Jako syntaktickou zkratku za $\tuple{s_1, s_2} \in \alpha$, kde $\alpha \in T$, zavádíme $s_1 \xrightarrow{\alpha} s_2$.
@@ -384,7 +384,7 @@ ve které je ekvivalence s \ref{eq:independent-clarke} zřejmá.
 
 
 
-Technika, použitá v \cite{CLARKE}, tedy partial order reduction s využitím dostatečných (ample) množin, spočívá v tom, že pro každý stav přechodového systému je spočítána množina přechodů $\mathit{ample}(s) \subseteq \mathit{enabled}(s)$, která má tu vlastnost, že přechody mimo $\mathit{ample}(s)$ nejsou ,,důležité''. Formálněji řečeno je třeba, aby ke každé cestě z iniciálního stavu přechodového systému existovala vhodným způsobem ekvivalentní\footnote{Jedná se o ,,koktavou'' (stuttering) ekvivalenci, viz \cite{CLARKE}.} cesta z téhož stavu, která nevyužívá žádné přechody mimo $\mathit{ample}$. Při procházení přechodového grafu pak není třeba uvažovat přechody mimo $\mathit{ample}$, což zmenšuje počet stavů, které je nutné prozkoumat během model checkingu.
+Technika, použitá v \cite{CLARKE}, tedy partial order reduction s využitím dostatečných (ample) množin, spočívá v tom, že pro každý dosažitelný stav přechodového systému je spočítána množina přechodů $\mathit{ample}(s) \subseteq \mathit{enabled}(s)$, která má tu vlastnost, že přechody mimo $\mathit{ample}(s)$ nejsou ,,důležité''. Formálněji řečeno je třeba, aby ke každé cestě z iniciálního stavu přechodového systému existovala vhodným způsobem ekvivalentní\footnote{Jedná se o ,,koktavou'' (stuttering) ekvivalenci, viz \cite{CLARKE}.} cesta z téhož stavu, která nevyužívá žádné přechody mimo $\mathit{ample}$. Při procházení přechodového grafu pak není třeba uvažovat přechody mimo $\mathit{ample}$, což zmenšuje počet stavů, které je nutné prozkoumat během model checkingu. Dosažitelnost stavu je přitom řešena pomocí algoritmu prohledávání do hloubky (dále DFS) z iniciálního stavu.
 
 \begin{definition}
 Přechod je neviditelný, pokud nikdy nezmění platnost atomické propozice z množiny předem vybraných propozic.
@@ -403,7 +403,7 @@ Kniha~\cite{CLARKE} uvádí několik podmínek, postačujících pro volbu vhodn
 
 \subsection{Výpočet ample(s)}
 \label{subsec:por-compute-ample}
-Podmínku C1 není snadné ověřit; \cite{CLARKE}~dokonce uvádí, že problém ověření podmínky C1 pro jeden stav je alespoň tak těžký, jako problém dosažitelnosti stavu v celém přechodovém systému. Z tohoto důvodu byly navrženy heuristiky, jejichž cílem je pro stav $s$ efektivně zvolit $ample(s)$ tak, aby byly podmínky (nebo alespoň podmínka C1) jistě splněny. Tyto heuristiky silně závisí na použitém modelu výpočtu a proto budou v tomto textu popsány až v sekci~\ref{sec:nts-por} přímo pro jazyk NTS.
+Pro splnění C3 stačí, aby v každém cyklu existoval alespoň jeden plně expandovaný stav, C2 je možné ověřit přímo z definice neviditelnosti přechodu. Ověřit podmínku C1 tak snadné není; \cite{CLARKE}~dokonce uvádí, že problém ověření podmínky C1 pro jeden stav je alespoň tak těžký, jako problém dosažitelnosti stavu v celém přechodovém systému. Z tohoto důvodu byly navrženy heuristiky, jejichž cílem je pro stav $s$ efektivně zvolit $ample(s)$ tak, aby byly podmínky (nebo alespoň podmínka C1) jistě splněny. Tyto heuristiky silně závisí na použitém modelu výpočtu a proto budou v tomto textu popsány až v sekci~\ref{sec:nts-por} přímo pro jazyk NTS.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -621,7 +621,7 @@ int main ( void ) {
 \end{figure}
 
 \begin{enumerate}
-\item Můžeme omezit množinu vstupních programů na ty, kde se všechny výskyty volání funkce \texttt{pthread\_create} nachází v hlavní funkci před výskytem prvního cyklu. Takových výskytů bude konečně mnoho a protože každý z nich může být řízením navštívený nejvýše jednou, snadno získáme hodnotu nejvyššího počtu souběžně běžících vláken. Potom můžeme pro každý výskyt volání funkce \texttt{pthread\_create} vytvořit jedno vlákno, jehož vstupní bod odpovídá předávané funkci. Pokud by se navíc první přístup na globální proměnné způsobený hlavní funkcí vyskytoval až po posledním volání \texttt{pthread\_create}, mohli bychom spustit všechna vlákna paralelně s funkcí main. Na obrázku~\ref{fig:llvm2nts:simple-c:simple-nts} je znázorněno, jak by mohl vypadat přeložený kód programu z obrázku~\ref{fig:llvm2nts:simple-c:orig}.
+\item \label{subsec:llvm2nts:paralelism-simple} Můžeme omezit množinu vstupních programů na ty, kde se všechny výskyty volání funkce \texttt{pthread\_create} nachází v hlavní funkci před výskytem prvního cyklu. Takových výskytů bude konečně mnoho a protože každý z nich může být řízením navštívený nejvýše jednou, snadno získáme hodnotu nejvyššího počtu souběžně běžících vláken. Potom můžeme pro každý výskyt volání funkce \texttt{pthread\_create} vytvořit jedno vlákno, jehož vstupní bod odpovídá předávané funkci. Pokud by se navíc první přístup na globální proměnné způsobený hlavní funkcí vyskytoval až po posledním volání \texttt{pthread\_create}, mohli bychom spustit všechna vlákna paralelně s funkcí main. Na obrázku~\ref{fig:llvm2nts:simple-c:simple-nts} je znázorněno, jak by mohl vypadat přeložený kód programu z obrázku~\ref{fig:llvm2nts:simple-c:orig}.
 
 \begin{figure}[t]
 \begin{lstlisting}
@@ -645,7 +645,7 @@ main {
 \label{fig:llvm2nts:simple-c:simple-nts}
 \end{figure}
 
-\item Opačnou možností je podporovat programy, které mohou volat funkci \texttt{pthread\_create} kdykoliv, a to i v právě vytvořeném vlákně. Princip této varianty spočívá ve vytvoření N pracovních vláken a jednoho vlákna hlavního s tím, že všechna pracovní vlákna jsou v iniciální konfiguraci nečinná. Vstupní bod společný pro všechna pracovní vlákna pak obsahuje volací přechody pro zavolání každé funkce, která je v původním programu někdy předávána funkci \texttt{pthread\_create}, avšak každý takový přechod je strážen formulí takovou, že z iniciální konfigurace paralelního systému není daný přechod povolený - vlákno tedy nemá žádný \textit{efekt}. Každé volání funkce \texttt{pthread\_create} se pokusí najít nečinné vlákno (při neúspěchu přejde do chybového stavu) a modifikuje globální proměnné tak, aby v onom vláknu došlo k povolení odpovídajícího přechodu. Naopak, po skončení funkce běžící v pracovním vláknu se vlákno opět vrací do nečinného stavu a je možné ho recyklovat. Zjednodušenou verzi této možnosti znázorňuje obrázek~\ref{fig:llvm2nts:simple-c:realworld-nts}, podrobnější verze je k dispozici v příloze na obrázku~\ref{fig:appendix:real-parallel-nts}.
+\item \label{subsec:llvm2nts:paralelism-complex}Opačnou možností je podporovat programy, které mohou volat funkci \texttt{pthread\_create} kdykoliv, a to i v právě vytvořeném vlákně. Princip této varianty spočívá ve vytvoření N pracovních vláken a jednoho vlákna hlavního s tím, že všechna pracovní vlákna jsou v iniciální konfiguraci nečinná. Vstupní bod společný pro všechna pracovní vlákna pak obsahuje volací přechody pro zavolání každé funkce, která je v původním programu někdy předávána funkci \texttt{pthread\_create}, avšak každý takový přechod je strážen formulí takovou, že z iniciální konfigurace paralelního systému není daný přechod povolený - vlákno tedy nemá žádný \textit{efekt}. Každé volání funkce \texttt{pthread\_create} se pokusí najít nečinné vlákno (při neúspěchu přejde do chybového stavu) a modifikuje globální proměnné tak, aby v onom vláknu došlo k povolení odpovídajícího přechodu. Naopak, po skončení funkce běžící v pracovním vláknu se vlákno opět vrací do nečinného stavu a je možné ho recyklovat. Zjednodušenou verzi této možnosti znázorňuje obrázek~\ref{fig:llvm2nts:simple-c:realworld-nts}, podrobnější verze je k dispozici v příloze na obrázku~\ref{fig:appendix:real-parallel-nts}.
 \end{enumerate}
 
 
@@ -748,27 +748,18 @@ Definice relace nezávislosti umožňuje jistou flexibilitu při výběru vhodn�
 \item Neexistuje proměnná, sdílená oběma přechody $t_1$ i $t_2$ a modifikovaná alespoň jedním z nich.
 \end{itemize}
 
-\subsection{Ample sety}
-Porušení podmínky C1 \label{subsec:c1-violation} znamená, že v úplném explicitním přechodovém grafu paralelního NTS existuje posloupnost $c_0 \rulemapsto{\alpha_0} \ldots \rulemapsto{\alpha_{m-1}} c_m \rulemapsto{\beta} s_{m+1}$, $c_j = (Q_j, v_j)$ taková, že $\beta \in \mathit{enabled}(c_l)$, $\beta$ je závislé na nějakém přechodovém pravidlu ve zvoleném $\mathit{ample}(c_0)$ a všechna $\alpha_j$ jsou nezávislá na všech pravidlech v $\mathit{ample}(c_0)$. Potom, jak uvádí \cite{CLARKE}, mohou nastat dvě situace.
-
-\begin{itemize}
-\item Pravidlo $\beta$ pochází z vlákna $i$ (tedy $\beta \in \mathit{outgoing}(q_{m,i})$).  Protože $\alpha_j$ jsou nezávislá na $\mathit{ample}(c_0)$, musí pocházet z jiného vlákna než $i$, tedy $q_{0,i} = q_{m,i}$. Protože $\beta \not \in \mathit{ample}(c_0)$, tak $\beta \not \in \mathit{enabled}(c_0)$. V tom případě se ale konfigurace $c_0$ a $c_m$ liší ve valuaci některých globálních proměnných, které jsou používány přechodovým pravidlem $\beta$, a tedy nějaké vlákno s $tid \neq i$ obsahuje přechodové pravidlo, modifikující proměnnou, která je používána pravidlem $\beta$.
-
-\item Pokud $\beta \not \in \mathit{outgoing}(q_{m,i})$, tedy pravidlo $\beta$ pochází z vlákna jiného než $i$, nějaké jiné vlákno než $i$ obsahuje pravidlo, které je závislé na nějakém pravidle z $\mathit{ample}(s_0)$.
-\end{itemize}
-
-V obou případech tedy musí nějaké jiné vlákno obsahovat přechodové pravidlo, které s nějakým pravidlem z $\mathit{ample}(c_0)$ sdílí proměnnou, která je modifikována jedním z nich. To se dá snadno ověřit, pokud si například předem pro každé vlákno napočítáme množinu proměnných v něm použitých. Přirozenou možností volby $\mathit{ample}(c_0)$ je množina všech povolených přechodů nějakého vlákna, tedy $\mathit{enabled}(c_0) \cup \mathit{outgoing}(q_{0, i})$. Pokud žádná taková volba neuspěje, konfiguraci plně expandujeme, tedy položíme $\mathit{ample}(c_0) = \mathit{enabled}(c_0)$.
-
-\todo{Zminit ze volime prechody z jednoho procesu}
-
 \section{Statická POR}
 Partial Order redukce bývá často implementována v model checkeru, který ji používá až během vlastní procedury model checkingu. Naším cílem je však provést redukci bez zkoumání stavového prostoru, jde nám pouze on sekvencializaci control flow. Tato varianta partial order redukce se nazývá statická \cite{SPOR}.
 
-To znamená, že nástroj nebude pracovat s konfiguracemi paralelního NTS, ale pouze s řídícími stavy, a z toho důvodu nebude přímo počítat $\mathit{ample}(c)$ konfigurace $c$. Pro řídící stav paralelního NTS se pokusíme spočítat množinu hran z tohoto stavu vycházejících tak, aby tyto hrany při libovolné valuaci proměnných tvořili platnou ample množinu. Formálněji, pro $Q = \tuple{q_{0}, \ldots, q_{k-1}}$ spočítáme $A(Q) \subseteq \mathit{outgoing}(Q)$ tak, aby $\forall v$ množina $A(Q) \cap \mathit{enabled}\left({\tuple{Q, v}}\right)$ byla platnou ample množinou v konfiguraci $\tuple{Q,v}$. V souladu s výše uvedenou heuristikou budeme za $A(Q)$ zkoušet použít $\mathit{outgoing}(q_i)$ nějakého vlákna $i$.
+To znamená, že nástroj nebude pracovat s konfiguracemi paralelního NTS, ale pouze s řídícími stavy, a z toho důvodu nebude přímo počítat $\mathit{ample}(c)$ konfigurace $c$. Pro řídící stav paralelního NTS se pokusíme spočítat množinu hran z tohoto stavu vycházejících tak, aby tyto hrany při libovolné valuaci proměnných tvořili platnou ample množinu. Formálněji, pro $Q = \tuple{q_{0}, \ldots, q_{k-1}}$ spočítáme $A(Q)$ jako podmnožinu $\mathit{outgoing}(Q)$ tak, aby $\forall v$ množina $A(Q) \cap \mathit{enabled}\left({\tuple{Q, v}}\right)$ byla platnou ample množinou v konfiguraci $\tuple{Q,v}$. V souladu s výše uvedenou heuristikou budeme za $A(Q)$ zkoušet použít $\mathit{outgoing}(q_i)$ nějakého vlákna $i$.
 
 Zbývá tedy určit, kdy můžeme množinu $\mathit{outgoing}(q_i)$ za $A(Q)$. Každá odvozená ample množina musí splňovat zmíněné podmínky \ref{subsec:por:ample-conditions} C0 až C3.
 \begin{enumerate}
-	\item[ad C0] Pro libovolnou valuaci $v$, pokud $\mathit{enabled}(\tuple{Q,v}) \neq \emptyset$, pak $\mathit{enabled}(\tuple{q_i,v}) \neq \emptyset$, tedy některé z přechodových pravidel v $\mathit{outgoing}(q_i)$ musí být povolené. Podmínku můžeme mírně zjednodušit (a zpřísnit) tak, že budeme požadovat, aby $\mathit{outgoing}(q_i) \neq \emptyset$ a navíc pro libovolnou\footnote{Tedy nejen takovou, že nějaké z pravidel nějakého vlákna je povolené, ale libovolnou.} valuaci $v$ nějaké přechodové pravidlo $t \in \mathit{outgoing}(q_i)$ bylo splnitelné. Tuto podmínku je možné vyřešit za použití externího solveru.
+	\item[ad C0] Požadujeme, aby pro libovolnou valuaci $v$ platilo
+	\begin{equation}
+	\mathit{enabled}(\tuple{Q,v}) \neq \emptyset \Rightarrow \mathit{enabled}(\tuple{q_i,v}) \neq \emptyset
+	\end{equation}		
+	tedy aby některé z přechodových pravidel v $\mathit{outgoing}(q_i)$ bylo povolené. Podmínku můžeme mírně zjednodušit (a zpřísnit) tak, že budeme požadovat, aby pro libovolnou\footnote{Tedy nejen takovou, že nějaké z pravidel nějakého vlákna je povolené.} valuaci $v$ nějaké přechodové pravidlo $t \in \mathit{outgoing}(q_i)$ bylo povolené. Tuto podmínku je možné vyřešit za použití externího solveru.
 
 	Zajímavá může být otázka, jak často může v praxi docházet k porušení této podmínky, pokud budeme uvažovat přechodové systémy, vzniklé překladem z LLVM IR. Pravidla, vzniklá překladem vnitřní instrukce BasicBlocku, budou splnitelná téměř vždy: tyto instrukce totiž obvykle zapisují spočítaný výsledek do registru nebo paměti. Pravidla, vzniklá z instrukcí terminujících BasicBlock, se obvykle budou vyskytovat po skupinách, z nichž alespoň jedno bude splnitelné. Naopak, podmínce budou nevyhovovat zejména pravidla, čekající na změnu nějaké globální proměnné, která jsou obsažena ve vstupních bodech pracovních vláknech, nebo pravidla vzniklá možným překladem funkce \texttt{pthread\_join} či funkce pro práci se synchronizačními primitivy.
 
@@ -780,13 +771,21 @@ Zbývá tedy určit, kdy můžeme množinu $\mathit{outgoing}(q_i)$ za $A(Q)$. K
 		\item Formule obsahuje havoc, který obsahuje všechny proměnné formule, které se v ní vyskytují čárkované (včetně případného pole, do něhož je zapisováno).
 		\item Každá čárkovaná proměnná se ve formuli vyskytuje nejvýše jednou.
 	\end{itemize}
-	Opět, velká část vnitřních instrukcí se překládá na přechody s formulí, která těmto pravidlům vyhovuje
+	Opět, velká část vnitřních instrukcí se překládá na přechody s formulí, která těmto pravidlům vyhovuje.
 
-\item[ad C1]
+\item[ad C1] Porušení podmínky C1 \label{subsec:c1-violation} znamená, že v úplném explicitním přechodovém grafu paralelního NTS existuje posloupnost $c_0 \rulemapsto{\alpha_0} \ldots \rulemapsto{\alpha_{m-1}} c_m \rulemapsto{\beta} s_{m+1}$, $c_j = (Q_j, v_j)$ taková, že $\beta \in \mathit{enabled}(c_l)$, $\beta$ je závislé na nějakém přechodovém pravidlu ve zvoleném $\mathit{ample}(c_0)$ a všechna $\alpha_j$ jsou nezávislá na všech pravidlech v $\mathit{ample}(c_0)$. Potom, jak uvádí \cite{CLARKE}, mohou nastat dvě situace.
 
-\item[ad C2]
+	\begin{itemize}
+		\item Pravidlo $\beta$ pochází z vlákna $i$ (tedy $\beta \in \mathit{outgoing}(q_{m,i})$).  Protože $\alpha_j$ jsou nezávislá na $\mathit{ample}(c_0)$, musí pocházet z jiného vlákna než $i$, tedy $q_{0,i} = q_{m,i}$. Protože $\beta \not \in \mathit{ample}(c_0)$, tak $\beta \not \in \mathit{enabled}(c_0)$. V~tom případě se ale konfigurace $c_0$ a~$c_m$ liší ve valuaci některých globálních proměnných, které jsou používány přechodovým pravidlem $\beta$, a~tedy nějaké vlákno s~$tid \neq i$ obsahuje přechodové pravidlo, modifikující proměnnou, která je používána pravidlem $\beta$.
 
-\item[ad C3]
+		\item Pokud $\beta \not \in \mathit{outgoing}(q_{m,i})$, tedy pravidlo $\beta$ pochází z~vlákna jiného než $i$, nějaké jiné vlákno než $i$ obsahuje pravidlo, které je závislé na nějakém pravidle z~$\mathit{ample}(s_0)$.
+	\end{itemize}
+
+	V obou případech tedy musí nějaké jiné vlákno obsahovat přechodové pravidlo, které s nějakým pravidlem z $\mathit{ample}(c_0)$ sdílí proměnnou, která je modifikována jedním z nich. To se dá snadno ověřit, pokud si například předem pro každé vlákno napočítáme množinu proměnných v něm použitých. Přirozenou možností volby $\mathit{ample}(c_0)$ je množina všech povolených přechodů nějakého vlákna, tedy $\mathit{enabled}(c_0) \cup \mathit{outgoing}(q_{0, i})$. Pokud žádná taková volba neuspěje, konfiguraci plně expandujeme, tedy položíme $\mathit{ample}(c_0) = \mathit{enabled}(c_0)$.
+
+\item[ad C2] Pokud žádné z přechodových pravidel nemůže modifikovat proměnnou, vyskytující se v množině vybraných atomických propozic, podmínka C2 je jistě splněna.
+
+\item[ad C3] Protože k hledání dosažitelných řídících stavů využíváme algoritmus DFS, stačí ověřit, že žádné z přechodových pravidel nevede do řídícího stavu, který je na zásobníku algoritmu DFS (a pokud ano, pak ověřovanou množinu $\mathit{outgoing}(q_i)$ nepoužijeme jako $A(Q)$). Každému cyklus z konfigurací nutně odpovídá cyklus z odpovídajících řídících stavů, a pokud je nějaký z těchto řídících stavů plně expandovaný, potom i odpovídající konfigurace bude plně expandovaná, což je podle~\cite{CLARKE} dostačující podmínka pro splnění C3.
 
 \end{enumerate}
 
@@ -804,11 +803,11 @@ Pro libovolný přechod $t$ (tedy i přechod s volacím pravidlem) zápisem $W(t
 \section{Problémy}
 
 \subsection{Problém velkého vlákna}
-Ukazuje se, že pro zvolený model paralelismu \ref{subsec:paralelism} uvedená heuristika není příliš efektivní. Pro velkou množinu programů \todo{všechny, které lze vyjádřit v modelu "vytvoř vlákna na začátku", todo taky nekde popsat dalsi mozne modely} totiž napočítané množiny $W(P_i)$ a $R(P_i)$ obsahují mnoho proměnných, které ve skutečnosti vlákno $i$ nepoužívá.
+Ukazuje se, že pro zvolený model paralelismu \ref{subsec:paralelism} uvedená heuristika není příliš efektivní. Pro velkou množinu přeložených programů (zejména pro ty, jež by bylo možné vyjádřit pomocí modelu~\ref{subsec:llvm2nts:paralelism-simple}) totiž napočítané množiny $W(P_i)$ a $R(P_i)$ obsahují mnoho proměnných, které ve skutečnosti vlákno $i$ nepoužívá.
 
 
 \subsubsection{Problémová situace}
-Uvažme například příklad \todo{reference}. Hlavní funkce vytvoří dvě vlákna, která používají vzájemně disjunktní množiny globálních proměnných. Po přeložení do jazyka NTS (se zvoleným modelem paralelismu) výsledné NTS obsahuje vygenerované BasicNts "__thread_pool_routine" \todo{Program to pojmenovava '__thread_poll_routine' - prijde opravit}, které obsahuje přechody, volající přeložené funkce @p1 a @p2.
+Uvažme například příklad~\ref{fig:problem-big-thread}. Hlavní funkce vytvoří dvě vlákna, která používají vzájemně disjunktní množiny globálních proměnných. Po přeložení do jazyka NTS (se zvoleným modelem paralelismu) výsledné NTS obsahuje vygenerované BasicNts \texttt{__thread_pool_routine}, které obsahuje přechody volající přeložené funkce \texttt{@p1} a \texttt{@p2}.
 \begin{figure}[h!]
 \begin{lstlisting}[language=llvm]
 @G1 = global i32 16;
@@ -832,7 +831,8 @@ define void @main() {
 	ret void;
 }
 \end{lstlisting}
-\caption{Vlákna, využívající odlišnou sadu proměnných. Zjednodušeno.}
+\caption{Vlákna, využívající odlišnou sadu proměnných. Zjednodušeno a navíc \texttt{t1}, \texttt{t2} jsou pouze označení pro účely tohoto textu.}
+\label{fig:problem-big-thread}
 \end{figure}
 
 \begin{figure}
@@ -852,67 +852,47 @@ __thread_pool_routine {
 \caption{Přechodový systém pracovního vlákna}
 \end{figure}
 
-Po zploštění tedy thread\_pool\_routine obsahuje přechody, které odpovídají původním funkcím p1 a p2. Protože tento BasicNts je vykonáván v každém pracovním vlákně, v každém pracovním vlákně jsou také obsaženy všechny přechody přeložených funkcí p1 a p2. Potom napočítané množiny $W(P_0) = W(P_1) \supseteq \{ G1, G2\}$. V situaci, kdy některé z vláken zapisuje do $G1$ (viz t1), potom nedojde k použití přechodu odpovídajícího t1 jako jednoprovkového ample setu, přestože žádný jiný přechod není na t1 závislý. 
+Po zploštění tedy \texttt{thread\_pool\_routine} obsahuje přechody, které odpovídají původním funkcím \texttt{p1} a \texttt{p2}. Protože tento BasicNts je vykonáván v každém pracovním vlákně, v každém pracovním vlákně jsou také obsaženy všechny přechody přeložených funkcí \texttt{p1} a \texttt{p2}. Potom napočítané množiny $W(P_0) = W(P_1) \supseteq \{ G1, G2\}$. V situaci, kdy některé z vláken zapisuje do $G1$ (viz přechodové pravidlo \texttt{t1}), potom nedojde k použití přechodu odpovídajícího \texttt{t1} jako jednoprovkového ample setu, přestože žádný jiný přechod není na \texttt{t1} závislý. 
 
 \subsubsection{Možné řešení}
-Pro zvolený model paralelismu se rozložení programu na vlákna zdá být příliš hrubým, protože mnohá vlákna budou mít totožné řízení (BasicNts, viz předchozí příklad). Rozložme tedy program jemněji na jednotky, kterým budeme říkat "úlohy".
+Pro zvolený model paralelismu se rozložení programu na vlákna zdá být příliš hrubým, protože mnohá vlákna budou mít totožné řízení (BasicNts, viz předchozí příklad). Rozložíme tedy program jemněji na jednotky, kterým budeme říkat ,,úlohy''. Domníváme se, že tento koncept může popisovaný problém výrazně omezit, v době psaní textu však řešení nalezeno nebylo. Následujících několik odstavců je tedy třeba vnímat pouze jako náznak cesty, kterou je možné se ubírat ve snaze nalézt řešení.
 
 \begin{definition}
-Pro plochý (i paralelní) přechodový systém N, množina úloh $\texttt{Tasks}(N)$ je množina taková, že libovolný řídící stav nějakého BasicNts z N leží v právě jedné úloze $T \in \texttt{Tasks}(N)$.
+Pro plochý (i paralelní) přechodový systém N, množina úloh $\mathit{Tasks}(N)$ je množina taková, že libovolný řídící stav nějakého BasicNts z N leží v právě jedné úloze $T \in \mathit{Tasks}(N)$.
 \end{definition}
 
 Přechodové systémy, vzniklé překladem pomocí našeho nástroje z LLVM IR a následným zploštěním, obsahují právě dva použité BasicNts: první z nich odpovídá funkci \texttt{main} původního programu, druhý pak kódu vykonávaným vláknem z thread poolu. Pro účely této práce můžeme rozdělit jejich stavy do úloh následujícím způsobem.
 
 \begin{enumerate}
-\item Máme právě jednu hlavní úlohu $T_{\texttt{main}}$, právě jednu nečinnou úlohu $T_{\texttt{idle}}$ a jednu úlohu $T_{f_i}$ pro každou funkci $f_i$, která je někde v původním LLVM IR programu předávána jako parametr funkce \texttt{pthread\_create}.
-\item Každý stav $s$ hlavního BasicNts (tj. toho, který vznikl překladem funkce main) leží v $T_{\texttt{main}}$.
-\item Všechny stavy, odpovídající stavům nezploštělého \texttt{\_\_thread\_pool\_routine}, leží v $T_{\texttt{idle}}$.
+\item Máme právě jednu hlavní úlohu $T_{\mathit{main}}$, právě jednu nečinnou úlohu $T_{\mathit{idle}}$ a jednu úlohu $T_{f_i}$ pro každou funkci $f_i$, která je někde v původním LLVM IR programu předávána jako parametr funkce \texttt{pthread\_create}.
+\item Každý stav $s$ hlavního BasicNts (tj. toho, který vznikl překladem funkce main) leží v $T_{\mathit{main}}$.
+\item Všechny stavy, odpovídající stavům nezploštělého \texttt{\_\_thread\_pool\_routine}, leží v $T_{\mathit{idle}}$.
 \item Všechny ostatní řídící stavy jsou řídícími stavy zploštělého \texttt{\_\_thread\_pool\_routine}, do kterého se dostaly během fáze zplošťování. Každý z těchto stavů přiřadíme úloze $T_{f_i}$ takové, že daný stav pochází z funkce $f_i$.
 \end{enumerate}
 
+
 Koncept úloh přirozeně rozšiřujeme i na přechody:
 \begin{definition}
-Přechod $t$ náleží úloze $T$ (zapisujeme $t \in \texttt{trans}(T)$) právě tehdy, když zdrojový řídící stav $s$ přechodu $t$ ($s = \texttt{from}(t)$) náleží úloze $T$ ($s \in T$).
+Přechod $t$ náleží úloze $T$ (zapisujeme $t \in \mathit{trans}(T)$) právě tehdy, když zdrojový řídící stav $s$ přechodu $t$ ($s = \mathit{from}(t)$) náleží úloze $T$ ($s \in T$).
 \end{definition}
 Protože každý přechod má jeden zdrojový řídící stav, každý přechod náleží právě jedné úloze. Tímto způsobem můžeme o každé úloze říci, jaké globální proměnné používá.
 
 \begin{definition}
 Zápis $W(T)$ rozšiřujeme na úlohy následujícím způsobem:
 \begin{equation*}
-v \in R(T) \Leftrightarrow \exists t, t \in \texttt{trans}(T) \land v \in R(t)
+v \in R(T) \Leftrightarrow \exists t, t \in \mathit{trans}(T) \land v \in R(t)
 \end{equation*}
 \begin{equation*}
-v \in W(T) \Leftrightarrow \exists t, t \in \texttt{trans}(T) \land v \in W(t)
+v \in W(T) \Leftrightarrow \exists t, t \in \mathit{trans}(T) \land v \in W(t)
 \end{equation*}
 \end{definition}
 Tedy úloha $T$ čte globální proměnnou $v$ právě tehdy, pokud existuje přechod $t$, který čte $v$ a patří $T$. Podobně, $T$ mění $v$ právě pokud nějaký přechod $t$ patřící $T$ mění $v$.
 Dále, v každém řídícím stavu paralelního systému můžeme některé úlohy označit jako \textit{aktivní}.
 \begin{definition}
-Pro řídící stav $q = \tuple{q_0, \ldots, q_{k-1}}$ paralelního systému definujeme množinu $\texttt{active}(q) = \{ T \suchthat \exists i, 0 \leq i < k \land q_i \in T \}$
+Pro řídící stav $q = \tuple{q_0, \ldots, q_{k-1}}$ paralelního systému definujeme množinu $\mathit{active}(q) = \{ T \suchthat \exists i, 0 \leq i < k \land q_i \in T \}$
 \end{definition}
 
-Jednou ze situací, která se hojně vyskytuje, je "přepnutí úlohy". V případě přechodových systémů, vzniklých překladem z LLVM, například často dochází k přepnutí $T_\texttt{idle}$ na nějakou $T_{f_i}$. 
-
-\newcommand{\switchto}{\rightarrow}
-\newcommand{\canswitchto}{\dashrightarrow}
-
-\begin{definition}
-Definujeme antireflexivní binární relaci nad úlohami $\switchto$ tak, že $T_1 \switchto T_2$ právě tehdy, když $T_1 \neq T_2$ a existují řídící stavy paralelního systému $q_1, q_2$, valuace $v_1, v_2$ a přechod $t$ takové, že stav (konfigurace) $\tuple{q_1, v_1}$ je v paralelním systému dosažitelný, $T_1 \in \texttt{active}(q_1) \land T_2 \in \texttt{active}(q_2)$ a $\tuple{q_1, v_1} \xrightarrow{t} \tuple{q_2, v_2}$.
-\end{definition}
-
-Protože rozhodnout dosažitelnost nějakého stavu není snadné, budeme často pracovat volnější s relací "$T_1$ se může přepnout na $T_2$".
-
-\begin{definition}
-Binární relace nad úlohami $\canswitchto$ je relací možného přepnutí, pokud je antireflexivní a pro libovolné dvě úlohy $T_1, T_2$ takové, že $T_1 \switchto T_2$, platí $T_1 \canswitchto T_2$.
-\end{definition}
-
-Nyní se můžeme vrátit k úvahám ze sekce \ref{subsec:c1-violation}. Přechod $\beta$ jistě leží v nějaké úloze $T_{\beta}$. Pokud přechod $T_{\beta} \not \in \texttt{active}(s_0)$, $T_{\beta}$ musela být aktivována během sekvence přechodů $\alpha_j$. Musí tedy existovat nějaká úloha $T$, kterou je možné po několika přepnutích přepnout až na $T_{\beta}$, zejména pak dvojice $\tuple{T, T_{\beta}}$ musí ležet v tranzitivním uzávěru relace $\canswitchto$.
-
-
-\todo{Jak může úloha způsobit přepnutí jiné úlohy na ještě jinou}
-
-%Protože každé pracovní vlákno (kromě vlastního) může potenciálně vykonávat libovolnou úlohu, tak téměř každé vlákno může použít téměř každou proměnnou. Redukce by se zredukovala na pouhý test "používám globální proměnné"?
-%Tedy je potřeba mít rozdělené stavy / přechody do úloh. O každé úloze spočítáme, jaké globální proměnné používá, a také, jaké jiné úlohy může aktivovat. Potom, pokud budeme znát řídící stav každého vlákna, můžeme zjistit, jaké úlohy běží a tedy i jaké globální proměnné jsou důležité.
+Při běhu paralelního NTS občas dochází k~přepínání aktivních úloh. Pokud se podaří ukázat, že pro libovolný běh začínající v~řídícím stavu $Q$, který \textit{neobsahuje} přechody z~vlákna $i$, nemůže dojít k~aktivaci nějaké (v~$Q$ neaktivní) úlohy (nebo vícero úloh), nemusíme brát do úvahy přechodová pravidla z~této úlohy, která by jinak mohla zabránit volbě přechodů z~$i$ jako $A(Q)$. Takováto situace může v~praxi nastávat často a~to zejména pro $i$ odpovídající hlavnímu vláknu, zůstává však otázkou, jak takovou situaci ověřit (nebo dokonce najít) automaticky.
 
 \todo{Inliner a dynamicky alokovane pole}
 
@@ -1033,7 +1013,7 @@ make install
 
 \subsection{Nástroj pro POR}
 Nástroj pro partial order reduction (
-\fnurl{GitHub}{https://github.com/h0nzZik/llvm-nts-PartialOrderReduction}) se skládá z knihovní části a řídícího programu; zatímco knihovní část závisí pouze na libNTS, řídící program závisí i na llvm2nts. Jeho kompilace je podobná kompilaci nástrojů zmíněných výše, je tedy třeba nejprve specifikovat, kde se nachází nainstalované knihovny, a poté spustit kompilaci příkazem \lstinline{make}.
+\fnurl{GitHub}{https://github.com/h0nzZik/llvm-nts-PartialOrderReduction}) se skládá z knihovní části a řídícího programu; zatímco knihovní část závisí pouze na libNTS, řídící program závisí i na llvm2nts. Jeho kompilace je podobná kompilaci nástrojů zmíněných výše, je tedy třeba nejprve specifikovat, kde se nachází nainstalované knihovny, a poté spustit kompilaci příkazem \verb+make+.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1053,7 +1033,7 @@ Jo teda nepodporuju rekurzi, a proto si můžu dovolit to, co dělám v inlineru
 \subsection{Znaménkové datové typy v NTS}
 
 %\begin{appendices}
-\chapter{Ukazky}
+\chapter{Ukázky}
 
 \begin{figure}[h!]
 \begin{lstlisting}[breaklines=true]
