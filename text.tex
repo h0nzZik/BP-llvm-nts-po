@@ -459,7 +459,7 @@ Naopak, funkce \texttt{pthread\_exit} implementována není a možná ani nebude
 Druhý důvod by nebyl problém v případě, že bychom překládali již zploštělý LLVM IR kód. Tato možnost je však není zcela v souladu s rozhodnutím~\ref{decision:do-nts-flattening}. Z druhého důvodu také není implementována ani funkce \texttt{pthread\_cancel}.
 
 \section{Rozšíření NTS}
-
+\label{sec:nts-extensions}
 \subsection{Typ BitVector}
 Jak můžeme vidět v předchozích částech, typový systém jazyka NTS se od typového systému LLVM IR 
 %\ref{subsec:llvm-type-system}
@@ -917,39 +917,42 @@ od stejného autora, která je (jak název napovídá) napsaná v jazyce OCaml.
 
 \section{Volba implementačního jazyka a knihoven}
 Pro implementaci překládacího nástroje jsme se rozhodli zvolit jazyk C++; hlavním důvodem této volby byla skutečnost, že knihovna LLVM je sama implementována v C++. Přestože existují vazby LLVM na D, Rust, Haskell, OCaml i další jazyky, tyto mohou být vydávány se zpožděním oproti LLVM, a my jsme zamýšleli držet se nejnovější verze LLVM. Dále, na Fakultě Informatiky Masarykovy Univerzity probíhá vývoj nástroje pro model checking s názvem DiVinE, který je implementován v C++, a implementace knihovny pro paměťovou reprezentaci jazyka NTS v jazyce C++ může později umožnit snadnější přidání podpory NTS právě do nástroje DiVinE\cite{BBH+13}. V neposlední řadě hrála roli také zkušenost autora s vývojem v jazyce C/C++.
-\subsection{•}
 
 \section{Knihovna libNTS}
 Jak je vidět z úvodu a předchozích kapitol, celá práce je složená z nástrojů pracujících s přechodovým systémem vyjádřeným v jazyce NTS. Z toho důvodu je vhodné, aby tyto nástroje používaly stejnou paměťovou reprezentaci. Aby mohly být nástroje do určité míry odděleny, tato reprezentace by měla být k dispozici ve formě knihovny.
 
-Přestože již některé nástroje pro jazyk NTS existují, v době psaní této práce nám nebyla známa existence žádné NTS knihovny s vazbou na C++. Z toho důvodu vznikla knihovna
-\fnurl{libNTS}{https://github.com/h0nzZik/libNTS_cpp}
-, jejíž zdrojový kód je hostován na serveru
-\fnurl{GitHub}{https://github.com/}
+Přestože již některé nástroje pro jazyk NTS existují, v době psaní této práce nám nebyla známa existence žádné NTS knihovny s vazbou na C++. Z toho důvodu vznikla knihovna libNTS, jejíž zdrojový kód je hostován na serveru
+\fnurl{GitHub}{https://github.com/h0nzZik/libNTS_cpp}
 . Knihovna je psaná v jazyce C++ revize C++14 a nevyužívá RTTI.
 
 \subsection{Parser}
-Knihovna libNTS v sobě neobsahuje parser jazyka NTS; tento vyvíjí Petr Bauch pod názvem
+Knihovna libNTS v sobě neobsahuje parser jazyka NTS. Petr Bauch však vyvíjí samostatný parser s názvem
 \fnurl{nts-parser}{https://github.com/xbauch/nts-parser}
-a v budoucnu by mohl umět z vybudovaného AST poskládat paměťovou reprezentaci programu ve formátu knihovny libNTS.
+, který by měl v budoucnu umět z vybudovaného AST poskládat paměťovou reprezentaci přechodového systému ve formátu knihovny libNTS.
 
 \subsection{Architektura}
-Architektura knihovny do velké míry odpovídá struktuře jazyka NTS. Celý přechodový systém se skládá ze seznamu vláken a jejich vstupních bodů, globálních proměnných a seznamu BasicNts, které obsahují zejména proměnné a přechody. Místy může architektura připomínat architekturu paměťové reprezentace LLVM IR, zejména pokud jde o \todo{...}
+Architektura knihovny do velké míry odpovídá struktuře jazyka NTS. Celý přechodový systém se skládá ze seznamu vláken a jejich vstupních bodů, globálních proměnných a seznamu BasicNts, které obsahují zejména proměnné a přechody. Záměrem bylo vytvořit obecnou knihovnu, která bude použitelná i mimo tuto práci, a její architektura byla v některých ohledech (například uživatelé proměnných, sekce~\ref{subsec:libNTS:variable:use}) inspirována architekturou paměťové reprezentace LLVM IR.
 
 \subsection{Vlastnictví}
 \label{subsec:libNTS:ownership}
-Nejen z důvodu, že C++ neobsahuje garbage collector, je třeba nějak řešit vlastnictví objektů. V rámci celé knihovny obecně platí, že vlastník prvku je vždy jeden: je jím právě ten prvek, jež ho lexikálně obklopuje. Tedy například vlastníkem přechodů a lokálních proměnných je vždy příslušný BasicBlock, vlastníkem podtermu či podformule je nadřazený term a podobně. Některé vlastněné prvky (zejména formule a termy) si svého vlastníka pamatují, což umožňuje procházet strom vlastnictví zdola nahoru. Tato vlastnost je užitečná zejména pro analýzu toho, jaké přechody či BasicNts využívají nějakou proměnnou (viz sekce~\ref{subsec:libNTS:variable:use}). Koncept pamatování si svého vlastníka však není příliš zobecněný ani abstrahovaný.
+Nejen z důvodu, že C++ neobsahuje garbage collector, je třeba nějak řešit vlastnictví objektů uvnitř knihovny. V rámci celé knihovny obecně platí, že každý prvek má právě jednoho vlastníka. Vlastníkem je ten prvek, který lexikální obklopuje vlastněného. Tedy například vlastníkem přechodů a lokálních proměnných je vždy příslušný BasicBlock, vlastníkem podtermu je nadřazený term a podobně. Některé vlastněné prvky (zejména formule a termy) si svého vlastníka pamatují, což umožňuje procházet strom vlastnictví zdola nahoru. Tato vlastnost je užitečná zejména pro analýzu toho, jaké přechody či BasicNts využívají nějakou proměnnou (viz sekce~\ref{subsec:libNTS:variable:use}). Koncept pamatování si svého vlastníka však není příliš zobecněný ani abstrahovaný.
 
 \todo{Což takhle nakreslit obrázek, zachycující vlastnictví a uživatele proměnných?}
 
-\subsubsection{Proměnné}
+\subsection{Proměnné}
 Specifikace jazyka rozlišuje mezi čárkovanými (primed) proměnnými a nečárkovanými proměnnými. Protože se čárkované proměnné mohou vyskytovat pouze uvnitř přechodových pravidel a navíc každé čárkované proměnné odpovídá nějaké nečárkovaná proměnná, knihovna libNTS používá mírně odlišný koncept. Proměnné zde existují pouze v nečárkované variantě (\texttt{Variable}) a uvnitř přechodů jsou většinou používány ve formě takzvaných \textit{referencí} (\texttt{VariableReference}). Každá reference je buď čtecí nebo zapisovací a tak odpovídá buď nečárkované proměnné (tedy proměnné v aktuálním stavu), nebo čárkované (proměnné v budoucím stavu).
 
 \label{subsec:libNTS:variable:use}
 Každá proměnná si také pamatuje seznam svých \textit{uživatelů} (\texttt{VariableUse}), mezi které patří kromě \texttt{VariableReference} také \texttt{Havoc}, volací přechodové pravidlo (\texttt{CallTransitionRule}) a atomická propozice pro zápis do pole (\texttt{ArrayWrite}). Protože proměnné nejsou používány přímo, ale vždy přes \texttt{VariableUse}, je sledování uživatelů proměnných (na rozdíl od sledování vlastníků, viz~\ref{subsec:libNTS:ownership}) automatické.
 
+\subsection{Typové informace}
+Protože rozšíření jazyka NTS uvedená v sekci~\ref{sec:nts-extensions} znamenají zesložitění jazyka a~jeho typového systému, je vhodné, aby libNTS uměla s typovou informací pracovat. V~paměťové reprezentaci proto každý term nese informaci o svém datovém typu a už při vytváření termů a atomických propozic je ověřována typová korektnost (tedy jestli například nedochází k sčítání pole a reálného čísla). Knihovna nepodporuje přepočítání typové informace po změně nějakého termu (například v případě výměny proměnných), uživatel knihovny je tedy povinen měnit strukturu již používaných formulí a termů pouze tak, aby nedocházelo ke změně typovosti.
+
+\subsection{Uživatelská data}
+Dalším ze způsobů, jak knihovna libNTS ulehčuje práci svým uživatelům, jsou uživatelská data. Některé významné třídy (třeba třída \texttt{Variable}) totiž obsahují veřejně přístupnou členskou proměnnou \texttt{user\_data}, která není knihovnou nijak používaná. Aplikace využívající libNTS mohou do této proměnné  uložit ukazatel na svá vlastní data, která jsou tak přístupná v konstantním čase (tedy rychleji než například při použití kontejneru \texttt{map}). Tato vlastnost je využívána jak ve zplošťovací proceduře, tak v nástroji pro partial order redukci.
+
 \subsection{Omezení}
-Zatím nepodporuji složitější operace s poli (přířazení polí, práci s referencemi, pole jako parametry funkcí). Parametry (par) jsou používány jako proměnné.
+Knihovna libNTS v současné době nepodporuje celý jazyk NTS. Mezi chybějící vlastnosti patří práce s poli, zejména jejich přiřazení, reference polí a předávání polí jako parametrů funkcí. Tyto vlastnosti buď nejsou vůbec implementovány, nebo jsou netestovány. Další vlastnosti (anotace, zjišťování vlastníků prvků) jsou implementovány neúplně či nesystematicky. Takovýchto omezení by však mělo v čase ubývat, navíc se dá předpokládat, že do knihovny bude přibývat další funkcionalita, která je v současné době implementována v externích nástrojích přímo.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
