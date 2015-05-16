@@ -1,4 +1,5 @@
-\documentclass[10pt,a4paper,notitlepage]{report}
+%\documentclass[10pt,a4paper,notitlepage]{report}
+\documentclass{fithesis2}
 \usepackage[utf8]{inputenc}
 \usepackage[czech]{babel}
 \usepackage[T1]{fontenc}
@@ -15,9 +16,9 @@
 \usepackage{csquotes}
 \usepackage{glossaries}
 \usepackage{todonotes} % command \todo
-\usepackage{hyperref}
+\usepackage[plainpages=false,pdfpagelabels]{hyperref}
 \usepackage{listings}
-\usepackage[titletoc]{appendix}
+\usepackage[toc,page,title,titletoc]{appendix}
 \usepackage[
    backend=biber      % if we want unicode 
   ,style=iso-numeric % or iso-numeric for numeric citation method          
@@ -25,6 +26,15 @@
   ,sortlocale=cs_CZ   % locale of main language, it is for sorting
   ,bibencoding=UTF8   % this is necessary only if bibliography file is in different encoding than main document
 ]{biblatex}
+
+\thesistitle{Sample thesis} % enter thesis title
+\thesissubtitle{Bakalářská práce}
+\thesisstudent{Jan Tušil}
+\thesiswoman{false}
+\thesisfaculty{fi}
+\thesisyear{jaro 2015}
+\thesisadvisor{Mgr. Petr Bauch} % fill in advisor’s name
+\thesislang{cz}
 
 \floatstyle{boxed}
 \restylefloat{figure}
@@ -49,6 +59,25 @@
 }
 
 \begin{document}
+
+\FrontMatter
+\ThesisTitlePage
+\begin{ThesisDeclaration}
+\DeclarationText
+\AdvisorName
+\end{ThesisDeclaration}
+
+\begin{ThesisThanks}
+I would like to thank my supervisor...
+\end{ThesisThanks}
+
+\begin{ThesisAbstract}
+The aim of the bachelor work is to provide...
+\end{ThesisAbstract}
+\begin{ThesisKeyWords}
+keyword1, keyword2, etc.
+\end{ThesisKeyWords}
+\MainMatter
 
 \chapter{Úvod}
 \section{Motivace}
@@ -978,9 +1007,35 @@ Přestože některé linuxové distribuce (napříkald Fedora) mají LLVM ve sv�
 \fnurl{GitHub}{https://github.com/llvm-mirror/llvm.git}. Verze 3.6 se nachází ve větvi \texttt{release_36}. Pro kompilaci nástroje \texttt{llvm2nts} je použit CMake, je proto vhodné i LLVM kompilovat pomocí CMake. \fnurl{Návod}{http://llvm.org/docs/CMake.html} k tomu je součástí oficiální dokumentace LLVM.
 
 \subsection{libNTS}
+Knihovna libNTS (k dispozici na serveru
+\fnurl{GitHub}{https://github.com/h0nzZik/libNTS_cpp})je využívána jak překládacím nástrojem, tak nástrojem implementujícím POR, přičemž oba využívají schopnosti CMake hledat potřebné moduly. Knihovnu lze zkompilovat a nainstalovat pomocí příkazu~\ref{fig:experiments:nts-install}. Během instalace dojde k vygenerování a instalaci souboru \textit{libnts\_cpp-config.cmake} do podadresáře \textit{lib/cmake/libNTS\_cpp/} a instalací hlavičkových souborů do podadresáře \textit{include/libNTS}.
+\begin{figure}[h!]
+\begin{lstlisting}[language=bash]
+cmake -DCMAKE_INSTALL_PREFIX:PATH=/usr/local .
+make install
+\end{lstlisting}
+\caption{Instalace libNTS}
+\label{fig:experiments:nts-install}
+\end{figure}
 
-\subsection{Kompilace}
-\subsection{Instalace?}
+\subsection{Překládací nástroj llvm2nts}
+Překládací nástroj (k dispozici na serveru
+\fnurl{GitHub}{https://github.com/h0nzZik/llvm2nts}) je závislý jak na LLVM, tak na libNTS, proto je třeba mít tyto zkompilované (a nainstalované) předem. Protože CMake obvykle hledá moduly pouze na standardních místech, je třeba pro úspěšnou kompilaci specifikovat místa, kde se libNTS a LLVM nachází, jak je uvedeno na obrázku~\ref{fig:experiments:llvm2nts-install}.
+\begin{figure}[h!]
+\begin{lstlisting}[language=bash]
+cmake -DCMAKE_PREFIX_PATH="~/build/llvm-3.6" .
+cmake -DCMAKE_INSTALL_PREFIX:PATH=/usr/local .
+make install
+\end{lstlisting}
+\caption{Instalace llvm2nts}
+\label{fig:experiments:llvm2nts-install}
+\end{figure}
+
+\subsection{Nástroj pro POR}
+Nástroj pro partial order reduction (
+\fnurl{GitHub}{https://github.com/h0nzZik/llvm-nts-PartialOrderReduction}) se skládá z knihovní části a řídícího programu; zatímco knihovní část závisí pouze na libNTS, řídící program závisí i na llvm2nts. Jeho kompilace je podobná kompilaci nástrojů zmíněných výše, je tedy třeba nejprve specifikovat, kde se nachází nainstalované knihovny, a poté spustit kompilaci příkazem \lstinline{make}.
+
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \chapter{Závěr}
@@ -997,7 +1052,7 @@ Jo teda nepodporuju rekurzi, a proto si můžu dovolit to, co dělám v inlineru
 
 \subsection{Znaménkové datové typy v NTS}
 
-\begin{appendices}
+%\begin{appendices}
 \chapter{Ukazky}
 
 \begin{figure}[h!]
@@ -1046,7 +1101,7 @@ sh -> sf { tpl' = 0 && ret_tid' = wt }
 \caption{Skutečný paralelní NTS vygenerovaný z programu v jazyce LLVM IR. Pro jednoduchost byly pouze přejmenovány proměnné a vynechány havoc() z formulí. Vstupní parametr \texttt{func\_id} v BasicNts \texttt{thread\_create} určuje funkci, která má být spuštěna ve volném vlákně. Globální proměnné \texttt{tpl} (thread pool lock) slouží jako zámek k ochraně kritické sekce.}
 \label{fig:appendix:real-parallel-nts}
 \end{figure}
-\end{appendices}
+%\end{appendices}
 
 \tableofcontents
 
