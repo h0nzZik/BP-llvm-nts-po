@@ -1,0 +1,41 @@
+nts parallel;
+
+tpl     : BitVector<32>
+sel[20] : BitVector<32>
+
+init tpl = 0 && forall i : BitVector<32>[0, 19] .
+     sel[i] = 0 ;
+instances worker[20], main[1];
+
+thread_func { ... }
+
+main {
+id : BitVector<64>;
+initial	si;
+si -> s2 { id' = thread_create ( 0 ) }
+...
+}
+
+worker {
+initial	s_idle;
+s_idle      -> s_running_1 { sel[tid] = 1 }
+s_running_1 -> s_stopped   { thread_func () }
+s_stopped   -> s_idle      { sel'[ tid ] = 0  }
+}
+
+thread_create {
+in  func_id : BitVector<32>;
+out ret_tid : BitVector<64>;
+wt          : BitVector<32>;
+initial	si;
+final	sf;
+error	se;
+
+si -> sl { tpl = 0 && tpl' = tid + 1 && wt' = 0 }
+sl -> sh { sel [wt] = 0 && sel'[wt] = func_id + 1 }
+sl -> sn { sel[wt] > 0 }
+sn -> sl { wt < 19 && wt' = wt + 1 }
+sn -> se { wt >= 19 }
+sh -> sf { tpl' = 0 && ret_tid' = wt }
+}
+

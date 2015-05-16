@@ -12,15 +12,16 @@
 \usepackage{makeidx}
 \usepackage{graphicx}
 \usepackage{syntax}    % texlive-mdwtools
+\usepackage{csquotes}
 \usepackage{glossaries}
 \usepackage{todonotes} % command \todo
 \usepackage{hyperref}
 \usepackage{listings}
-\usepackage[detect-all]{siunitx} % numrange
+\usepackage[titletoc]{appendix}
 \usepackage[
    backend=biber      % if we want unicode 
   ,style=iso-numeric % or iso-numeric for numeric citation method          
-  ,babel=other        % to support multiple languages in bibliography
+  ,autolang=other        % to support multiple languages in bibliography
   ,sortlocale=cs_CZ   % locale of main language, it is for sorting
   ,bibencoding=UTF8   % this is necessary only if bibliography file is in different encoding than main document
 ]{biblatex}
@@ -39,6 +40,8 @@
 
 \newcommand{\tuple}[1]{\langle #1 \rangle}
 \newcommand{\suchthat}{\mid}
+
+\renewcommand{\appendixname}{Priloha}
 
 % převzato z http://tex.stackexchange.com/a/5809
 \newcommand\fnurl[2]{%
@@ -591,7 +594,6 @@ int main ( void ) {
 \begin{enumerate}
 \item Můžeme omezit množinu vstupních programů na ty, kde se všechny výskyty volání funkce \texttt{pthread\_create} nachází v hlavní funkci před výskytem prvního cyklu. Takových výskytů bude konečně mnoho a protože každý z nich může být řízením navštívený nejvýše jednou, snadno získáme hodnotu nejvyššího počtu souběžně běžících vláken. Potom můžeme pro každý výskyt volání funkce \texttt{pthread\_create} vytvořit jedno vlákno, jehož vstupní bod odpovídá předávané funkci. Pokud by se navíc první přístup na globální proměnné způsobený hlavní funkcí vyskytoval až po posledním volání \texttt{pthread\_create}, mohli bychom spustit všechna vlákna paralelně s funkcí main. Na obrázku~\ref{fig:llvm2nts:simple-c:simple-nts} je znázorněno, jak by mohl vypadat přeložený kód programu z obrázku~\ref{fig:llvm2nts:simple-c:orig}.
 
-
 \begin{figure}[t]
 \begin{lstlisting}
 instances main[1], p1[1], p2[1];
@@ -614,7 +616,7 @@ main {
 \label{fig:llvm2nts:simple-c:simple-nts}
 \end{figure}
 
-\item Opačnou možností je podporovat programy, které mohou volat funkci \texttt{pthread\_create} kdykoliv, a to i v právě vytvořeném vlákně. Princip této varianty spočívá ve vytvoření N pracovních vláken a jednoho vlákna hlavního s tím, že všechna pracovní vlákna jsou v iniciální konfiguraci nečinná. Vstupní bod společný pro všechna pracovní vlákna pak obsahuje volací přechody pro zavolání každé funkce, která je v původním programu někdy předávána funkci \texttt{pthread\_create}, avšak každý takový přechod je strážen formulí takovou, že z iniciální konfigurace paralelního systému není daný přechod povolený - vlákno tedy nemá žádný \textit{efekt}. Každé volání funkce \texttt{pthread\_create} se pokusí najít nečinné vlákno (při neúspěchu přejde do chybového stavu) a modifikuje globální proměnné tak, aby v onom vláknu došlo k povolení odpovídajícího přechodu. Naopak, po skončení funkce běžící v pracovním vláknu se vlákno opět vrací do nečinného stavu a je možné ho recyklovat. Zjednodušenou verzi této možnosti znázorňuje obrázek~\ref{fig:llvm2nts:simple-c:realworld-nts}.
+\item Opačnou možností je podporovat programy, které mohou volat funkci \texttt{pthread\_create} kdykoliv, a to i v právě vytvořeném vlákně. Princip této varianty spočívá ve vytvoření N pracovních vláken a jednoho vlákna hlavního s tím, že všechna pracovní vlákna jsou v iniciální konfiguraci nečinná. Vstupní bod společný pro všechna pracovní vlákna pak obsahuje volací přechody pro zavolání každé funkce, která je v původním programu někdy předávána funkci \texttt{pthread\_create}, avšak každý takový přechod je strážen formulí takovou, že z iniciální konfigurace paralelního systému není daný přechod povolený - vlákno tedy nemá žádný \textit{efekt}. Každé volání funkce \texttt{pthread\_create} se pokusí najít nečinné vlákno (při neúspěchu přejde do chybového stavu) a modifikuje globální proměnné tak, aby v onom vláknu došlo k povolení odpovídajícího přechodu. Naopak, po skončení funkce běžící v pracovním vláknu se vlákno opět vrací do nečinného stavu a je možné ho recyklovat. Zjednodušenou verzi této možnosti znázorňuje obrázek~\ref{fig:llvm2nts:simple-c:realworld-nts}, podrobnější verze je k dispozici v příloze na obrázku~\ref{fig:appendix:real-parallel-nts}.
 \end{enumerate}
 
 
@@ -641,7 +643,7 @@ main {
 	s2 -> ... // kod funkce main
 }
 \end{lstlisting}
-\caption{Přeložený program z obrázku~\ref{fig:llvm2nts:simple-c:orig} - druhý způsob, zjednoduseno}
+\caption{Přeložený program z obrázku~\ref{fig:llvm2nts:simple-c:orig} - druhý způsob, zjednodušeno}
 \label{fig:llvm2nts:simple-c:realworld-nts}
 \end{figure}
 
@@ -883,7 +885,10 @@ Nyní se můžeme vrátit k úvahám ze sekce \ref{subsec:c1-violation}. Přecho
 %Protože každé pracovní vlákno (kromě vlastního) může potenciálně vykonávat libovolnou úlohu, tak téměř každé vlákno může použít téměř každou proměnnou. Redukce by se zredukovala na pouhý test "používám globální proměnné"?
 %Tedy je potřeba mít rozdělené stavy / přechody do úloh. O každé úloze spočítáme, jaké globální proměnné používá, a také, jaké jiné úlohy může aktivovat. Potom, pokud budeme znát řídící stav každého vlákna, můžeme zjistit, jaké úlohy běží a tedy i jaké globální proměnné jsou důležité.
 
+\todo{Inliner a dynamicky alokovane pole}
+
 \subsection{Problém velkého pole}
+Další z omezení použití POR souvisí s poli. Na pole je totiž nahlíženo jako na jednu proměnnou, a tak pokud dvě přechodová pravidla přistupují na různé prvky téhož pole, heuristika s nimi pracuje, jako kdyby přistupovaly na tutéž proměnnou. Taková situace dokonce nastává i v praxi v případě paralelních NTS získaných překladem programu v LLVM IR kódu. \todo{Odkaz na appendix}.
 V případě, že bychom měli pole takové, že by na každou jeho pozici přistupoval nejvýše jeden proces,
 a procesů bychom měli mnoho, vyplatilo by se sledovat jeho jednotlivé buňky zvlášť. To ale neděláme. Btw jedno takové pole máme.
 
@@ -958,8 +963,22 @@ Knihovna libNTS v současné době nepodporuje celý jazyk NTS. Mezi chybějíc�
 
 \chapter{Experimenty}
 \section{Použití implementovaných nástrojů}
+Pro překlad a následnou partial order redukci programu v jazyce LLVM IR jsou potřeba následující nástroje:
+\begin{itemize}
+\item Hlavičkové soubory a knihovny LLVM verze 3.6
+\item Knihovna libNTS
+\item Překládací nástroj llvm2nts
+\item Nástroj implementující partial order redukci
+\end{itemize}
 \todo{Tuto část textu bych rád viděl i v příslušných README.md}
-\subsection{Získání}
+
+\subsection{LLVM}
+Přestože některé linuxové distribuce (napříkald Fedora) mají LLVM ve svých oficiálních repozitářích, může být vhodnější zkompilovat si LLVM vhodné verze manuálně.. Kromě oficiálního gitového
+\fnurl{repozitáře}{http://llvm.org/git/llvm} projektu je možné využít jeho zrcadlo na serveru
+\fnurl{GitHub}{https://github.com/llvm-mirror/llvm.git}. Verze 3.6 se nachází ve větvi \texttt{release_36}. Pro kompilaci nástroje \texttt{llvm2nts} je použit CMake, je proto vhodné i LLVM kompilovat pomocí CMake. \fnurl{Návod}{http://llvm.org/docs/CMake.html} k tomu je součástí oficiální dokumentace LLVM.
+
+\subsection{libNTS}
+
 \subsection{Kompilace}
 \subsection{Instalace?}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -978,6 +997,56 @@ Jo teda nepodporuju rekurzi, a proto si můžu dovolit to, co dělám v inlineru
 
 \subsection{Znaménkové datové typy v NTS}
 
+\begin{appendices}
+\chapter{Ukazky}
+
+\begin{figure}[h!]
+\begin{lstlisting}[breaklines=true]
+nts parallel;
+
+tpl     : BitVector<32>
+sel[20] : BitVector<32>
+
+init tpl = 0 && forall i : BitVector<32>[0, 19] .
+     sel[i] = 0 ;
+instances worker[20], main[1];
+
+thread_func { ... }
+
+main {
+id : BitVector<64>;
+initial	si;
+si -> s2 { id' = thread_create ( 0 ) }
+...
+}
+
+worker {
+initial	s_idle;
+s_idle      -> s_running_1 { sel[tid] = 1 }
+s_running_1 -> s_stopped   { thread_func () }
+s_stopped   -> s_idle      { sel'[ tid ] = 0  }
+}
+
+thread_create {
+in  func_id : BitVector<32>;
+out ret_tid : BitVector<64>;
+wt          : BitVector<32>;
+initial	si;
+final	sf;
+error	se;
+
+si -> sl { tpl = 0 && tpl' = tid + 1 && wt' = 0 }
+sl -> sh { sel [wt] = 0 && sel'[wt] = func_id + 1 }
+sl -> sn { sel[wt] > 0 }
+sn -> sl { wt < 19 && wt' = wt + 1 }
+sn -> se { wt >= 19 }
+sh -> sf { tpl' = 0 && ret_tid' = wt }
+}
+\end{lstlisting}
+\caption{Skutečný paralelní NTS vygenerovaný z programu v jazyce LLVM IR. Pro jednoduchost byly pouze přejmenovány proměnné a vynechány havoc() z formulí. Vstupní parametr \texttt{func\_id} v BasicNts \texttt{thread\_create} určuje funkci, která má být spuštěna ve volném vlákně. Globální proměnné \texttt{tpl} (thread pool lock) slouží jako zámek k ochraně kritické sekce.}
+\label{fig:appendix:real-parallel-nts}
+\end{figure}
+\end{appendices}
 
 \tableofcontents
 
