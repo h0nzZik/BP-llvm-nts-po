@@ -79,6 +79,8 @@ model checking, partial order reduction, LLVM, NTS
 \end{ThesisKeyWords}
 \MainMatter
 
+\tableofcontents
+
 \chapter{Úvod}
 \section{Motivace}
 Model checking~\cite{CLARKE} (česky ověřování modelu) je v současné době oblíbenou technikou pro automatizovanou formální verifikaci softwaru i hardwaru, trpí však problémem stavové exploze zejména při verifikaci paralelního softwaru. Jednou z možností jak zmenšit počet stavů, které je třeba ověřit, je použití techniky nazývané (z historických důvodů~\cite{CLARKE}) Partial Order Reduction (redukce částečným uspořádáním, POR), která využívá komutativity některých paralelně vykonávaných instrukcí.
@@ -492,39 +494,34 @@ Druhý důvod by nebyl problém v případě, že bychom překládali již zplo�
 \subsection{Typ BitVector}
 Jak můžeme vidět v předchozích částech, typový systém jazyka NTS se od typového systému LLVM IR 
 %\ref{subsec:llvm-type-system}
-v mnohém liší. Zatímco v LLVM IR mohou stejný datový typ (Integer type, například i8) využívat jak aritmetické instrukce (binary instructions), tak bitové logické instrukce (bitwise binary instructions), jazyk NTS již na úrovni syntaxe podporuje logické operace pouze nad termy typu Bool. Pro překlad LLVM IR do NTS je tedy nezbytné cílový jazyk vhodným způsobem rozšířit. Možností je více:
+v mnohém liší. Zatímco v LLVM IR mohou stejný datový typ (\textit{Integer type}, například \texttt{i8}) využívat jak aritmetické instrukce (patří mezi \textit{binary instructions}), tak bitové logické instrukce (\textit{bitwise binary instructions}), jazyk NTS již na úrovni syntaxe podporuje logické operace pouze nad termy typu Bool. Pro překlad LLVM IR do NTS je tedy nezbytné cílový jazyk vhodným způsobem rozšířit. Možných způsobů je více:
 \begin{enumerate}
-\item Rozšířit logcké operace i nad datový typ Int. Jaký by ale byl význam například negace? Totiž, pro různou bitovou šířku dává negace různý výsledek. Budeme-li mít například proměnnou typu Int s hodnotou 5 (binárně 101), pokud se na ní budeme dívat jako na 4 bitové číslo (tedy 0101), dostaneme po negaci 10 (1010), pokud se na ní budeme dívat jako na 3 bitové číslo, dostaneme po negaci hodnotu 2 (binárně 010). 
+\item Rozšířit logcké operace i nad datový typ Int. Jaký by ale byl význam například negace? Totiž, pro různou bitovou šířku dává negace různý výsledek.
 
 \item Zavést speciální operátory, které budou v sobě obsahovat informaci o uvažované bitové šířce.
 
 \item Zavést datový typ BitVector<k>, který je vlastně k-ticí typu Bool. Na něm můžeme dělat logické operace bitově a aritmetické operace jako na binárně reprezentovaném čísle. 
 \end{enumerate}
-
-Volíme třetí způsob.
-
-V syntaxi původního nts je rozlišováno mezi aritmetickým a booleovském literálem. Chtěli bychom nějak zapisovat bitvectorové hodnoty. Ve hře jsou dvě možnosti:
-
+Volíme třetí způsob. Dále, v syntaxi původního nts je rozlišováno mezi aritmetickým a booleovském literálem. Chtěli bychom nějak zapisovat bitvectorové hodnoty. Nabízejí se dvě možnosti:
 \begin{enumerate}
 
-\item Pro zápis konstant typu BitVector<k> bychom mohli používat speciální syntaxi. Například zápis 32x"01abcd42" může představovat konstantu typu BitVector<32>, zapsanou v hexadecimálním tvaru. Toto řešení je navíc vhodné pro zápis speciálních konstant (jako $2^{31}$) v lidsky čitelném tvaru. 
+\item Pro zápis konstant typu \texttt{BitVector<k>} bychom mohli používat speciální syntaxi. Například zápis \texttt{32x"01abcd42"} může představovat konstantu typu \texttt{BitVector<32>}, zapsanou v hexadecimálním tvaru. Toto řešení je navíc vhodné pro zápis speciálních konstant (jako $2^{31}$) v lidsky čitelném tvaru. 
 
-\item Aritmetické literály mohou mít schopnost být Int-em nebo BitVector<k>-em podle potřeby (polymorfismus?).
+\item Aritmetické literály mohou mít schopnost být typu \texttt{Int} nebo typu \texttt{BitVector<k>} podle potřeby (polymorfismus?).
 
 \end{enumerate}
 
-Použita byla druhá možnost (také si jí tu podrobněji popíšeme). V případě potřeby můžeme do jazyka přidat i tu první, ale už ne kvůli potřebě rozlišovat mezi datovými typy, ale kvůli užitečnosti zapisovat některé konstanty hezky.
+Použita byla druhá možnost, která je v následujícím textu popsána. V případě potřeby je možné do jazyka přidat i první možnost první, ne už kvůli potřebě rozlišovat mezi datovými typy, ale kvůli užitečnosti zapisovat některé konstanty ,,hezky''.
 
-Syntaxi jazyka zjednodušíme tak, že definujeme jeden neterminál <term> místo dvou neterminálů <arith-term> a <bool-term>. S každým termem bude ale spojená sémantická informace, kterou je jeho datový typ. Definujeme následující skalární datové typy:
-
+Syntaxi jazyka zjednodušíme tak, že definujeme jeden neterminál \texttt{<term>} místo dvou neterminálů \texttt{<arith-term>} a \texttt{<bool-term>} z původního jazyka (viz obrázek~\ref{fig:nts-ext-grammar}). S každým termem bude ale spojená sémantická informace, kterou je jeho datový typ. Definujeme následující skalární datové typy:
 \begin{enumerate}
-\item Int
-\item BitVector<k>, $\forall k \in \mathbb{N^+}$
-\item Real
+\item \texttt{Int}
+\item \texttt{BitVector<k>}, $\forall k \in \mathbb{N^+}$
+\item \texttt{Real}
 \end{enumerate}
+Datový typ \texttt{Bool} pak chápeme jako zkratku za typ \texttt{BitVector<1>}.
 
-Původní datový typ Bool chápeme jako zkratku za typ BitVector<1>
-
+\begin{figure}[t]
 \begin{grammar}
 <literal> ::= <id> | tid | <numeral> | <decimal>
 
@@ -534,8 +531,12 @@ Původní datový typ Bool chápeme jako zkratku za typ BitVector<1>
 
 <op> = <aop> | <bop>
 
-<term> ::= <literal> | <term> <aop> <term> | <term> <bop> <term> | `(' <term> `)'
+<term> ::= <literal> | <term> <aop> <term> | <term> <bop> <term> 
+\alt `(' <term> `)'
 \end{grammar}
+\caption{Gramatika rozšířeného NTS (zjednodušeno).}
+\label{fig:nts-ext-grammar}
+\end{figure}
 %TODO mozna by v gramatice melo byt:
 % <uop> = `-' | "not"
 % <term> ::= .... <uop> <term>
@@ -543,40 +544,35 @@ Původní datový typ Bool chápeme jako zkratku za typ BitVector<1>
 %TODO gramatika muze byt v plovoucim prostredi
 
 \subsection{Typovací pravidla}
-Abychom zajistili, že syntakticky stejný výraz může být typu BitVector nebo Int, definujeme typovou třídu Integral se členy BitVector<k> a Int. Typ výrazu je definován rekurzivně
-
+Abychom zajistili, že syntakticky stejný výraz může být typu \texttt{BitVector} nebo \texttt{Int}, definujeme typovou třídu \texttt{Integral} se členy \texttt{BitVector<k>} a \texttt{Int}. Typ výrazu je definován rekurzivně:
 \begin{enumerate}
-\item[TR1] Numerická konstanta <numeral> je libovolného typu 'a' z třídy Integral.
+\item[TR1] Numerická konstanta \texttt{<numeral>} je libovolného typu \texttt{a} z třídy \texttt{Integral}.
 \item[TR2] <decimal> je typu Real
-\item[TR3] tid je libovolného typu 'a' z třídy Integral
-\item[TR4] <id> je stejného typu, jako odpovídající proměnná
+\item[TR3] \texttt{tid} je libovolného typu \texttt{a} z třídy \texttt{Integral}
+\item[TR4] \texttt{<id>} je stejného typu, jako odpovídající proměnná
+\item[TR5] Máme-li termy
+	\begin{itemize}
+	\item \texttt{a1 :: Integral a => a}
+	\item \texttt{a2 :: Integral b => b}
+	\item \texttt{b1 :: BitVector<k1>}
+	\item \texttt{b2 :: BitVector<k2>}
+	\item \texttt{i1 :: Int}
+	\item \texttt{i2 :: Int}
+	\end{itemize}
+	potom pro termy z nich utvořené platí následujcí pravidla:
+	\begin{itemize}
+	\item \texttt{a1 <aop> a2 :: Integral a => a}
+	\item \texttt{a1 <op>  b1 :: Bitvector<k1>}
+	\item \texttt{a1 <aop> i1 :: Int}
+	\item \texttt{b1 <op>  b2 :: BitVector<max{k1,k2}>}
+	\item \texttt{i1 <aop> i2 :: Int}
+	\end{itemize}
 \end{enumerate}
+Uvedená pravidla platí i komutativně a výraz, na nějž nelze žádné z nich aplikovat, je typově nesprávný.
 
 %BTW BitVector můžeme chápat jako typový konstruktor
 %TODO neni korektni delat logicke operace nad dvemi nespecifikovanymi integraly.
 %V pravidlech to zachytim, ale v programu to zatim neni.
-
-Mějme termy\\
-a1 :: Integral a => a\\
-a2 :: Integral b => b\\
-b1 :: BitVector<k1> \\
-b2 :: BitVector<k2>\\
-i1 :: Int\\
-i2 :: Int\\
-
-Potom:
-a1 <aop> a2 :: Integral a => a
-a1 <op>  b1 :: Bitvector<k1>
-a1 <aop> i1 :: Int
-b1 <op>  b2 :: BitVector<max{k1,k2}>
-i1 <aop> i2 :: Int
-
-Tato pravidla platí i komutativně. Co se do nich nevejde, není typově správný výraz.
-
-Tedy přidáváme datový typ BitVector, typové třídy a implicitní typová konverze.
-
-Btw můžeme využívat anotace. Zatím je využíváme jenom trochu, ale dají se o nich vkládat
-i nějaké informace z LLVM nebo další postřehy.
 
 \section{Vlastni preklad}
 
@@ -586,19 +582,16 @@ Jak jazyk NTS, tak LLVM IR podporují určitou formu hierarchického členění 
 \subsection{BasicBlocky}
 Každá funkce se skládá z BasicBlocků. Protože žádná instrukce uvnitř základního blocku nemění tok řízení a po jejím vykonání je vykonávána instrukce následující, můžeme každý základní blok s N vnitřními instrukcemi přeložit jako N nových řídících stavů, kde n-tý stav odpovídá stavu programu po vykonání n instrukcí. Sémantika jednotlivých vnitřních instrukcí bude poté zachycena v přechodových pravidlech mezi jednotlivými stavy.
 
-\paragraph{Terminující instrukce}
-Nicméně poslední instrukce v základním bloku může změnit tok řízení, například ukončit vykonávání funkce nebo skočit na začátek jiného základního bloku. Třída takovýchto instrukcí se nazývá "terminační instrukce", protože tyto instrukce ukončují základní blok. Odpovídající přechody tedy nemusí vést do nového stavu, ale do již existujícího stavu jiného základního bloku.
+\paragraph{Terminační instrukce}
+Nicméně poslední instrukce v základním bloku může změnit tok řízení, například ukončit vykonávání funkce nebo skočit na začátek jiného základního bloku. Třída takovýchto instrukcí se nazývá třídou ,,terminačních instrukcí'', protože tyto instrukce ukončují základní blok. Odpovídající přechody tedy nemusí vést do nového stavu, ale do již existujícího stavu jiného základního bloku.
 
-\todo{Zmínit SSA}
-V jazyce LLVM IR existuje instruce Phi, reprezentující $\Phi$ uzel \todo{známe z teorie překladačů?} v SSA jazyce. Tato instrukce se nachází pouze na začátku základního bloku a jeí výsledek je závislý na předchozím dokončeném základním bloku. Z tohoto důvodu jsou při překladu funkce základní bloky očíslovány a každá terminující instrukce ukládá číslo svého základního bloku do speciální proměnné. Samotná phi instrukce však v době psaní tohoto textu není v překládacím nástroji implementována.
-
-
-
-%\subsubsection{Znaménkové datové typy v NTS}
+V jazyce LLVM IR existuje instruce \texttt{Phi}, reprezentující $\Phi$ uzel v SSA reprezentaci. Tato instrukce se nachází pouze na začátku základního bloku a její výsledek je závislý na předchozím dokončeném základním bloku. Z tohoto důvodu jsou při překladu funkce základní bloky očíslovány a každá terminační instrukce ukládá číslo svého základního bloku do speciální proměnné. Samotná \texttt{Phi} instrukce však v době psaní tohoto textu není v překládacím nástroji implementována.
 
 \subsection{Paralelismus}
 \label{subsec:paralelism}
-Jak je vidět ze sekcí \ref{sec:posix-threads} a~\ref{subsec:nts-paralelism}, jazyky LLVM IR a NTS implementují paralelismus velice odlišně. Asi nejvýznamějším rozdílem je, že použití pthreads v jazyce LLVM IR umožňuje vytvářet vlákna kdykoliv, a že pro množství programů není možné určit, kolik vláken nakonec použijí (problém zastavení\todo{Je ta nemožnost a redukce na PZ zřejmá?}). Existuje více způsobů, jak se se zmiňovanou rozdílností vypořádat, zde však uvádíme pouze dva nejvýraznější. K oběma uvedeným způsobům se vztahuje kód z obrázku~\ref{fig:llvm2nts:simple-c:orig}, který je zde do jazyka NTS přeložen postupně oběma způsoby.
+Jak je vidět ze sekcí \ref{sec:posix-threads} a~\ref{subsec:nts-paralelism}, jazyky LLVM IR a NTS implementují paralelismus velice odlišně. Asi nejvýznamějším rozdílem je, že použití \texttt{pthreads} v jazyce LLVM IR umožňuje vytvářet vlákna kdykoliv, a že pro množství programů není možné určit, kolik vláken nakonec použijí (problém zastavení).
+%\todo{Je ta nemožnost a redukce na PZ zřejmá?}
+Existuje více způsobů, jak se se zmiňovanou rozdílností vypořádat, zde však uvádíme pouze dva nejvýraznější. K oběma uvedeným způsobům se vztahuje kód z obrázku~\ref{fig:llvm2nts:simple-c:orig}, který je zde do jazyka NTS přeložen postupně oběma způsoby.
 
 \begin{figure}[h]
 \begin{lstlisting}[language=C]
@@ -642,7 +635,7 @@ main {
 \label{fig:llvm2nts:simple-c:simple-nts}
 \end{figure}
 
-\item \label{subsec:llvm2nts:paralelism-complex}Opačnou možností je podporovat programy, které mohou volat funkci \texttt{pthread\_create} kdykoliv, a to i v právě vytvořeném vlákně. Princip této varianty spočívá ve vytvoření N pracovních vláken a jednoho vlákna hlavního s tím, že všechna pracovní vlákna jsou v iniciální konfiguraci nečinná. Vstupní bod společný pro všechna pracovní vlákna pak obsahuje volací přechody pro zavolání každé funkce, která je v původním programu někdy předávána funkci \texttt{pthread\_create}, avšak každý takový přechod je strážen formulí takovou, že z iniciální konfigurace paralelního systému není daný přechod povolený - vlákno tedy nemá žádný \textit{efekt}. Každé volání funkce \texttt{pthread\_create} se pokusí najít nečinné vlákno (při neúspěchu přejde do chybového stavu) a modifikuje globální proměnné tak, aby v onom vláknu došlo k povolení odpovídajícího přechodu. Naopak, po skončení funkce běžící v pracovním vláknu se vlákno opět vrací do nečinného stavu a je možné ho recyklovat. Zjednodušenou verzi této možnosti znázorňuje obrázek~\ref{fig:llvm2nts:simple-c:realworld-nts}, podrobnější verze je k dispozici v příloze na obrázku~\ref{fig:appendix:real-parallel-nts}.
+\item \label{subsec:llvm2nts:paralelism-complex}Opačnou možností je podporovat programy, které mohou volat funkci \texttt{pthread\_create} kdykoliv, a to i v právě vytvořeném vlákně. Princip této varianty spočívá ve vytvoření $N$ pracovních vláken a jednoho vlákna hlavního s tím, že všechna pracovní vlákna jsou v iniciální konfiguraci nečinná. Vstupní bod společný pro všechna pracovní vlákna pak obsahuje volací přechody pro zavolání každé funkce, která je v původním programu někdy předávána funkci \texttt{pthread\_create}, avšak každý takový přechod je strážen formulí takovou, že z iniciální konfigurace paralelního systému není daný přechod povolený - vlákno tedy nemá žádný \textit{efekt}. Každé volání funkce \texttt{pthread\_create} se pokusí najít nečinné vlákno (při neúspěchu přejde do chybového stavu) a modifikuje globální proměnné tak, aby v onom vláknu došlo k povolení odpovídajícího přechodu. Naopak, po skončení funkce běžící v pracovním vláknu se vlákno opět vrací do nečinného stavu a je možné ho recyklovat. Zjednodušenou verzi této možnosti znázorňuje obrázek~\ref{fig:llvm2nts:simple-c:realworld-nts}, podrobnější verze je k dispozici v příloze na obrázku~\ref{fig:appendix:real-parallel-nts}.
 \end{enumerate}
 
 
@@ -672,8 +665,6 @@ main {
 \caption{Přeložený program z obrázku~\ref{fig:llvm2nts:simple-c:orig} - druhý způsob, zjednodušeno}
 \label{fig:llvm2nts:simple-c:realworld-nts}
 \end{figure}
-
-\todo{Do appendixu pridat skutecnou verzi s funkci \texttt{thread\_create}}
 
 Množství skutečných programů se nevejde do množiny, podporované první možností. Právě z toho důvodu jsme se rozhodli zvolit možnost druhou.
 
@@ -784,17 +775,11 @@ Zbývá tedy určit, kdy můžeme množinu $\mathit{outgoing}(q_i)$ za $A(Q)$. K
 \end{enumerate}
 
 
-
-%\paragraph{Problém s C0}
-%Pokud zvolíme A neprázdné tak, že je dosažitelný stav, kdy žádný přechod z A nebude proveditelný, ale nějaký přechod mimo A ano, pak dojde k porušení C0. Toto je ale problém pouze pro obecné NTS, protože přechody překládané z LLVM IR jsou vždy proveditelné. \todo{To není tak docela pravda - viz například podmíněné skoky. Ale dost možná je pravda, že vždycky bude alespoň jeden přechod z daného stavu uskutečnitelný.}
-
-
+\section{Problémy}
 
 \begin{definition}
 Pro libovolný přechod $t$ (tedy i přechod s volacím pravidlem) zápisem $W(t)$ rozumíme množinu proměnných, které může přechod $t$ změnit, a zápisem $R(t)$ množinu proměnných, které přechod $t$ čte. Pro libovolné vlákno $P$ zápisem $W(P)$ rozumíme množinu takových proměnných, že pro každou $v \in W(P)$ existuje přechod $t$ vlákna $P$ t.ž. $v \in W(t)$. Obdobně definujeme i $R(P)$.
 \end{definition}
-
-\section{Problémy}
 
 \subsection{Problém velkého vlákna}
 Ukazuje se, že pro zvolený model paralelismu \ref{subsec:paralelism} uvedená heuristika není příliš efektivní. Pro velkou množinu přeložených programů (zejména pro ty, jež by bylo možné vyjádřit pomocí modelu~\ref{subsec:llvm2nts:paralelism-simple}) totiž napočítané množiny $W(P_i)$ a $R(P_i)$ obsahují mnoho proměnných, které ve skutečnosti vlákno $i$ nepoužívá.
@@ -888,19 +873,11 @@ Pro řídící stav $q = \tuple{q_0, \ldots, q_{k-1}}$ paralelního systému def
 
 Při běhu paralelního NTS občas dochází k~přepínání aktivních úloh. Pokud se podaří ukázat, že pro libovolný běh začínající v~řídícím stavu $Q$, který \textit{neobsahuje} přechody z~vlákna $i$, nemůže dojít k~aktivaci nějaké (v~$Q$ neaktivní) úlohy (nebo vícero úloh), nemusíme brát do úvahy přechodová pravidla z~této úlohy, která by jinak mohla zabránit volbě přechodů z~$i$ jako $A(Q)$. Takováto situace může v~praxi nastávat často a~to zejména pro $i$ odpovídající hlavnímu vláknu, zůstává však otázkou, jak takovou situaci ověřit (nebo dokonce najít) automaticky.
 
-\todo{Inliner a dynamicky alokovane pole}
-
 \subsection{Problém velkého pole}
-Další z omezení použití POR souvisí s poli. Na pole je totiž nahlíženo jako na jednu proměnnou, a tak pokud dvě přechodová pravidla přistupují na různé prvky téhož pole, heuristika s nimi pracuje, jako kdyby přistupovaly na tutéž proměnnou. Taková situace dokonce nastává i v praxi v případě paralelních NTS získaných překladem programu v LLVM IR kódu. \todo{Odkaz na appendix}.
-V případě, že bychom měli pole takové, že by na každou jeho pozici přistupoval nejvýše jeden proces,
-a procesů bychom měli mnoho, vyplatilo by se sledovat jeho jednotlivé buňky zvlášť. To ale neděláme. Btw jedno takové pole máme.
+Další z omezení použití POR souvisí s poli. Na pole je totiž nahlíženo jako na jednu proměnnou, a tak pokud dvě přechodová pravidla přistupují na různé prvky téhož pole, heuristika s nimi pracuje, jako kdyby přistupovaly na tutéž proměnnou. Taková situace dokonce nastává i v praxi v případě paralelních NTS získaných překladem programu v LLVM IR kódu (viz~\ref{fig:appendix:real-parallel-nts}).
 
 \subsection{Problém závislosti na datech}
-Zda může nějaké vlákno běžet, závisí na datech. My se ale o data moc nestaráme (TODO: tohle je třeba ujasnit na začátku). Tedy nemůžeme vědět, že na začátku poběží jenom hlavní vlákno. Tedy zeserializovaný systém bude obsahovat běhy, jejihž podmínka cesty bude nesplnitelná. Obecně tohle řešit snadno nelze, ale pokud se omezíme na zjištění informace, zda nějaké vlákno z thread poolu může začít vykonávat nějakou úlohu, stačí nám sledovat pár zvolených proměnných. Na to máme dvě možnosti:
-
-a) Analyzovat vykonávané přechody, zda modifikují naše vybrané proměnné. Předpokládáme, že většina formulí bude mít hezký tvar, a že tedy nemusíme vědět všechno na to, abychom některé mohli rovnou označit za nesplnitelné a o jiných prohlásit, že modifikují námi vybranou proměnnou jednoduchým způsobem.
-
-b) Umět rozpoznat původně existující struktury i v přeloženém a zplacatělém přechodovém systému. Tedy musíme vědět, co jsou pracovní vlákna, co dělá \_\_thread\_create (a jak jí poznám) a další věci.
+Ve zvoleném modelu paralelismu pracovní vlákna ve výchozím stavu čekají, až jim bude přiřazena nějaká činnost. Toto čekání závisí na valuaci globálních proměnných, které ale v naší implementaci nezkoumáme. Při serializaci budou prohledávány i ty cesty řídícího toku, které nikdy nemohou nastat, a tyto cesty budou zahrnuty i do sekvencializovaného systému.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -1022,15 +999,8 @@ Nástroj pro partial order reduction (
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\chapter{Nepřiřazeno}
 
-
-\section{Možná budoucí rozšíření}
-\todo{Petr psal autorům NTS, a pokud si dobře vzpomínám, jeden z nich projevil přání, abychom mohli překládat llvm do stávající podmnožiny NTS - tedy do intů. Celé LLVM tak nepůjde, ale jistá podmnožina ano. Každopádně zatím se na tom nepracuje.}
-
-\subsection{Znaménkové datové typy v NTS}
-
-%\begin{appendices}
+\appendix
 \chapter{Ukázky}
 
 \begin{figure}[h!]
@@ -1079,9 +1049,6 @@ sh -> sf { tpl' = 0 && ret_tid' = wt }
 \caption{Skutečný paralelní NTS vygenerovaný z programu v jazyce LLVM IR. Pro jednoduchost byly pouze přejmenovány proměnné a vynechány havoc() z formulí. Vstupní parametr \texttt{func\_id} v BasicNts \texttt{thread\_create} určuje funkci, která má být spuštěna ve volném vlákně. Globální proměnné \texttt{tpl} (thread pool lock) slouží jako zámek k ochraně kritické sekce.}
 \label{fig:appendix:real-parallel-nts}
 \end{figure}
-%\end{appendices}
-
-\tableofcontents
 
 \printbibliography
 
