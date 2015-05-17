@@ -38,4 +38,3 @@ sn -> sl { wt < 19 && wt' = wt + 1 }
 sn -> se { wt >= 19 }
 sh -> sf { tpl' = 0 && ret_tid' = wt }
 }
-
