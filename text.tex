@@ -1,5 +1,5 @@
 %\documentclass[10pt,a4paper,notitlepage]{report}
-\documentclass{fithesis2}
+\documentclass[12pt]{fithesis2}
 \usepackage[utf8]{inputenc}
 \usepackage[czech]{babel}
 \usepackage[T1]{fontenc}
@@ -72,73 +72,39 @@ I would like to thank my supervisor...
 \end{ThesisThanks}
 
 \begin{ThesisAbstract}
-The aim of the bachelor work is to provide...
+Cílem této bakalářské práce je umožnit analýzu a verifikaci paralelních programů využívajících pthreads v jazyce LLVM IR nástrojům, jež dokáží pracovat s přechodovými systémy v jazyce NTS. Za tímto účelem práce implementuje statickou verzi techniky zvané \textit{Partial Order Reduction}.
 \end{ThesisAbstract}
 \begin{ThesisKeyWords}
-keyword1, keyword2, etc.
+model checking, partial order reduction, LLVM, NTS
 \end{ThesisKeyWords}
 \MainMatter
 
 \chapter{Úvod}
 \section{Motivace}
-Exploze stavového prostoru při model checkingu, Partial Order Redukce to řeší,
-LLVM model checking je super a chceme tam POR.
+Model checking~\cite{CLARKE} (česky ověřování modelu) je v současné době oblíbenou technikou pro automatizovanou formální verifikaci softwaru i hardwaru, trpí však problémem stavové exploze zejména při verifikaci paralelního softwaru. Jednou z možností jak zmenšit počet stavů, které je třeba ověřit, je použití techniky nazývané (z historických důvodů~\cite{CLARKE}) Partial Order Reduction (redukce částečným uspořádáním, POR), která využívá komutativity některých paralelně vykonávaných instrukcí.
 
-To, co chceme, je vygenerovaný NTS, který není paralelní. Tedy výstupem redukce
-není explicitní stavový prostor.
+Jazyk LLVM IR je součástí projektu LLVM~\cite{LLVM}, jehož cílem je vytvoření infrastruktury pro tvorbu překladačů. V současné době existují nástroje~\cite{LLBMC} určené pro model checking jazyka LLVM, ne všechny z nich~\cite{BBH+13} však implementují POR. Cílem této práce je vytvořit z programu v jazyce LLVM IR využívajícím posixová vlákna (pthreads) odpovídající redukovaný sekvenční přechodový systém v jazyce NTS.
 
 \section{Přístup}
-Cílem této práce tedy je vytvořit ze vstupního programu v jazyce LLVM IR, jež využívá posixová vlákna, odpovídající sekvenční přechodový systém v jazyce NTS. Tuto úlohu je možné přirozeně rozdělit na dvě části, a to na
+Tuto úlohu je možné přirozeně rozdělit na dvě části, a to na
 \begin{enumerate}
 \item přirozený překlad programu z LLVM IR do NTS se zachováním paralelismu (část dále označovaná jako překlad), a
-\item převod paralelního programu v jazyce NTS na sekvenční program (část dále označovaná jako sekvencializace).
+\item převod paralelního programu v jazyce NTS na sekvenční program s využitím POR (část dále označovaná jako sekvencializace).
 \end{enumerate}
+Tyto dvě části jsou poměrně nezávislé a mohou být implementovány jako rozdílné nástroje, pracující nad společnou knihovnou. Rozdělením navíc získáváme možnost ověřovat vlastnosti sekvenčních programů v jazyce LLVM IR nástrojem, který rozumí jazyku NTS.
 
-Tyto dvě části jsou poměrně nezávislé a mohou být implementovány jako rozdílné nástroje, pracující nad společnou knihovnou. Rozdělením navíc získáváme možnost ověřovat vlastnosti sekvenčních programů v jazyce LLVM IR nástrojem, který rozumí jazyku NTS \todo{Až na uvedená rozšíření. Nechtěli jsme mít možnost použít unbounded integery?}.
-
-%Velký obraz - jak se vypořádat s funkčními voláními? Jaké jsem měl možnosti?
-
-%Výsledkem trojice: llvm2nts, inliner, vlastní POR. Všechno pracuje nad knihovnou pro paměťovou
-%reprezentaci NTS. Related work: Petrův parser.
+% Related work: Petrův parser.
 
 %Všechno ve formě knihovny - jednoduché rozhraní, snadno použitelné.
 
-%BTW: NTS je 'ten' - system
-\subsection{Funkční volání}
-
-Chceme tedy z paralelního NTS, který vznikl překladem z LLVM IR, učinit sekvenční. Pokud o vstupním paralelním NTS nebudeme nic předpokládat, nástroj pro sekvencializaci bude muset umět korektně zacházet s funkčními voláními, protože ta mohou být součástí NTS. To zejména znamená, že nástroj si bude muset pro každý stav výstupního systému udržovat přehled o tom, jaké funkce jsou v jakém vlákně aktivní. Implementace takového nástroje nemusí být snadná, proto jsme učinili následující rozhodnutí:
-
-% tohle bych chtel v sedem ramecku, podobne jako byvaji citace nebo theoremy
-\begin{decision}\label{decision:sequentialize-flat-llvm}
-Nástroj pro sekvencializaci předpokládá, že vstupní paralelní systém neobsahuje funkční volání, tedy (v termínech) NTS není hierarchický. Takové NTS budeme dále označovat jako "ploché".
-\end{decision}
-
-Většina skutečných programů v jazyce LLVM IR ovšem obsahují funkční volání, a rádi bychom takové programy podporovali. Nabízejí se dvě možnosti, jak takovou podporu zajistit. První spočívá v tom, že paralelní program v jazyce LLVM IR přeložíme na paralelní a (potenciálně) hierarchický přechodový systém v jazyce NTS, který následně převedeme na ekvivalentní paralelní plochý přechodový systém. Alternativní možností je nejprve odstranit funkční volání z paralelního LLVM IR programu a následně tento plochý program převést na plochý paralelní přechodový systém. Oba způsoby však znamenají, že programy s rekurzivním voláním nebudou podporovány.
-
-\paragraph{Zplošťování LLVM}
-Zploštění programu v LLVM IR nevyžaduje téměř žádnou další práci, protože již na tuto úlohu existuje llvm průchod. Jmenuje se
-\href{http://llvm.org/docs/Passes.html#inline-function-integration-inlining}
-{inline} a je součástí projektu LLVM. Nicméně nástroj pro překlad LLVM IR na NTS musí umět korektně přeložit volání funkce
-\href{http://man7.org/linux/man-pages/man3/pthread\_create.3.html}
-{pthread\_create(3)}, které v tomto případě nemůže být přeloženo jako volání BasicNts na úrovni NTS. Volání této funkce by tedy muselo být vhodně přeloženo již na úrovni LLVM kódu.
-
-\paragraph{Zplošťování NTS}
-Přestože je pro zplošťování NTS potřeba udělat o něco více práce, napsání odpovídajícího nástroje nám umožní sekvencializaci libovolného NTS - ne jen toho, které vzniklo překladem z LLVM, ale libovolného hierarchického NTS.
-%Navíc pokud nástroj na zploštění NTS bude dostatečně samostatný, bude ho možné znovu využít jinde.
-
-\begin{decision}\label{decision:do-nts-flattening}
-Protože kvůli rozhodnutí~\ref{decision:sequentialize-flat-llvm} nástroj na sekvencializaci NTS podporuje pouze ploché NTS, vytvoříme nástroj, který z hierarchického NTS udělá nehierarchické (ploché) NTS.
-\end{decision}
-
-\subsection{Architektura}
-Celý problém se tedy rozpadá na několik částí. Nejprve potřebujeme přeložit program z jazyka LLVM IR do formalizmu NTS, poté z přeloženého programu odstranit volání subsystémů, plochý program sekvencializovat s využitím partial order redukce a nakonec ho uložit do souboru. Pro spolupráci těchto částí je třeba mít vybudovanou vhodnou paměťovou reprezentaci programu v jazyce NTS. Existence parseru by byla užitečná (zejména pro testování), ale není nutná.
-
 \section{Popis následujících kapitol}
+Následující text obsahuje nejprve popis použitých technologií (kap.~\ref{sec:technologies}), konkrétně jazyka LLVM IR, knihovny posixových vláken, jazyka NTS a techniky POR, následuje krátká analýza (kap.~\ref{sec:analysis}) řešeného problému a popis způsobu překladu jazyka LLVM IR do jazyka NTS (kap.~\ref{sec:translation}). Další kapitola~(\ref{sec:nts-por}) obsahuje komentář k použití POR pro redukci přechodových systému v jazyce, následovaná kapitolou~\ref{sec:implementation} zabývající se implementací knihovny \textit{libNTS}, která slouží k práci s paměťovou reprezentací přechodového systému v jazyce NTS. Práci uzavíráme krátkým popisem experimentálních výsledků.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \chapter{Použité technologie}
+\label{sec:technologies}
 \section{LLVM}
 Projekt LLVM~\cite{LLVM} je sada knihoven a nástrojů, tvořící infrastrukturu pro tvorbu překladačů. Ke své činnosti využívá mezijazyk známý jako LLVM intermediate representation~\cite{LLVM-langRef} (dále LLVM IR nebo jen IR) a sadu dobře definovaných softwarových rozhraní pro manipulaci s~ním. Práci překladače vybudovaného nad LLVM lze rozdělit do několika fází: nejprve je zpracován kód ve vstupním jazyce (proběhne lexikální, syntaktická a sémantická analýza), poté je vygenerován mezikód v~jazyce LLVM IR, nad tímto pak proběhnou zvolené optimalizace, z~výsledného IR kódu je vygenerován platformově specifický kód a~proběhne linkování. Tato architektura umožňuje využít při tvorbě překladače již jednou napsaných částí~\cite{AOSABOOK-LLVM}.
 
@@ -178,8 +144,8 @@ Průchod (orig. pass) je softwarový modul, který pracuje nad kódem v~LLVM IR.
 \subsection{Využití}
 V současné době existují nástroje pro software model checking (model checkery), které přijímají model v~jazyce LLVM IR. Mezi ně patří například Divine~\cite{BBH+13}. Využití tohoto jazyka přináší celou řadu výhod. Zaprvé, pro velké množství překladačů do LLVM IR je model checker méně závislý na programovacím jazyku, v~němž je napsaný ověřovaný software. Dále, před vlastní model checking lze zařadit již napsané průchody, které nástroji poskytnou užitečné informace nebo zrychlí model checking samotný.
 
-\subsubsection{Vztah k této práci}
-Z uvedených důvodů budeme i~v~této práci jako vstupní jazyk využívat právě LLVM IR. Nicméně protože sémantika tohoto jazyka není definovaná formálně a~v~oblasti model checkingu se obvykle pracuje s~přechodovými systémy (jako jsou Kripkeho struktury~\cite{CLARKE}), v~této práci bude výhodné pracovat s~jazykem popisujícím přechodový systém.
+%\subsubsection{Vztah k této práci}
+%Z uvedených důvodů budeme i~v~této práci jako vstupní jazyk využívat právě LLVM IR. Nicméně protože sémantika tohoto jazyka není definovaná formálně a~v~oblasti model checkingu se obvykle pracuje s~přechodovými systémy (jako jsou Kripkeho struktury~\cite{CLARKE}), v~této práci bude výhodné pracovat s~jazykem popisujícím přechodový systém.
 
 
 \section{Posix threads}
@@ -189,14 +155,14 @@ Jazyk LLVM IR sám neposkytuje podporu pro explicitní paralelismus. Té je mož
 \subsection{pthread_create()}
 Nejzajímavější funkcí z této knihovny je \texttt{pthread\_create}\cite{man-pthread-create} (viz obrázek~\ref{fig:pthread-create-c}), která spustí funkci, jež dostala jako argument parametru \texttt{start\_routine}, v nově vytvořeném vlákně. Funkce dále uloží ID vlákna do proměnné \texttt{*thread} (nesmí být \texttt{null}), argument parametru \texttt{arg} předá jako parametr funkci \texttt{start\_routine} a o úspěchu či neúspěchu informuje volajícího prostřednictvím návratové hodnoty.
 
-Protože podle normy POSIX.1-2001 \todo{reference} je \texttt{pthread\_t} neprůhledný (opaque) datový typ, prototyp této funkce v jazyce LLVM IR je platformově závislý. Na obrázku~\ref{fig:pthread-create-llvm} se nachází prototyp \texttt{pthread\_create}, jak je k dispozici v systému Fedora 21 x86_64 s GNU libc verze 2.20 (pthreads jsou součásti glibc).
+Protože podle normy POSIX.1-2001 \cite{posix} je \texttt{pthread\_t} neprůhledný (opaque) datový typ, prototyp této funkce v jazyce LLVM IR je platformově závislý. Na obrázku~\ref{fig:pthread-create-llvm} se nachází prototyp \texttt{pthread\_create}, jak je k dispozici v systému Fedora 21 x86_64 s GNU libc verze 2.20 (pthreads jsou součásti glibc).
 
 \begin{figure}[h!]
 \begin{lstlisting}[language=C]
-int pthread_create ( pthread_t *thread,
-                     const pthread_attr_t *attr,
-                     void *(*start_routine) (void *),
-                     void *arg                        );
+int pthread_create (pthread_t *thread,
+                    const pthread_attr_t *attr,
+                    void *(*start) (void *),
+                    void *arg                   );
 \end{lstlisting}
 \label{fig:pthread-create-c}
 \caption{Prototyp funkce \texttt{pthread_create} v jazyce C}
@@ -205,19 +171,21 @@ int pthread_create ( pthread_t *thread,
 \begin{figure}[h!]
 \begin{lstlisting}[language=llvm]
 declare i32 @pthread_create (
-	i64*, %union.pthread_attr_t*, i8* (i8*)*, i8* )
+	i64*, %union.pthread_attr_t*,
+	i8* (i8*)*, i8*               )
 \end{lstlisting}
 \label{fig:pthread-create-llvm}
 \caption{Prototyp funkce \texttt{pthread_create} v jazyce LLVM IR}
 \end{figure}
 
 \section{NTS}
-Jazyk NTS (Numerical Transition Systems) je jednoduchý jazyk s~formalizovanou sémantikou~\cite{NTSref}, sloužící pro popis numerických přechodových systémů. NTS mohou modelovat libovolný software~\cite{NTSref} a~protože software je obvykle strukturován do menších částí, NTS obsahuje konstrukce pro hierarchickou i~paralelní kompozici systémů. Následuje stručný popis tohoto jazyka, zájemci o preciznější popis mohou nahlédnout do \cite{NTSref}.
-
-\todo{Zmínit globální proměnné}
+Jazyk NTS (Numerical Transition Systems) je jednoduchý jazyk s~formalizovanou sémantikou, sloužící pro popis numerických přechodových systémů. NTS mohou modelovat libovolný software~\cite{NTSref} a~protože software je obvykle strukturován do menších částí, NTS obsahuje konstrukce pro hierarchickou i~paralelní kompozici systémů. Následuje stručný popis tohoto jazyka, zájemci o preciznější popis mohou nahlédnout do~\cite{NTSref}.
 
 \subsection{BasicNts}
 Základní jednotkou NTS je BasicNts, což je samostatný přechodový systém, sestávájící z proměnných, řídících stavů a přechodů mezi nimi. Řídící stavy mohou být označeny jako iniciální, finální a chybové. Přechody jsou tvaru $s_i \overset{R}{\rightarrow} s_j$, kde $R$ je přechodové pravidlo, strážící přechod, a $s_i, s_j$ řídící stavy. Přechod může být vykonán pouze v případě, že je přechodové pravidlo naplněno.
+
+\subsection{Proměnné}
+Kromě lokálních proměnných nějakého BasicNts může přechodový systém obsahovat i proměnné globální. Jazyk navíc obsahuje speciální konstrukci pro proměnné, které se za běhu nemění: takové jsou nazývány \textit{parametry}.
 
 \subsection{Přechodová pravidla}
 Přechodová pravidla mohou být dvojího druhu: volací pravidlo (například  $(p1',p2') = \texttt{factorize} (x)$) slouží k zavolání jiného BasicNts, předání parametrů volanému a uložení výsledků volání, zatímco formulové pravidlo (například $d' * d' = x$) obsahuje formuli predikátové logiky prvního řádu, jejíž splnění umožňuje přechod do cílového stavu přechodu. 
@@ -407,34 +375,62 @@ Pro splnění C3 stačí, aby v každém cyklu existoval alespoň jeden plně ex
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+%BTW: NTS je 'ten' - system
+\chapter{Analýza}
+\label{sec:analysis}
+Jak již bylo řečeno v úvodu, celá úloha se skládá ze dvou částí, tedy z překladu programu z LLVM IR do NTS a  ze sekvencializaci vytvořeného paralelního NTS s použitím POR. Pokud bychom o přeloženém paralelním NTS nic předpokládali, nástroj pro sekvencializaci by měl umět korektně zacházet s funkčními voláními (respektive s voláními jiných BasicNts), protože ta mohou být součástí programu. To by zejména znamenalo, že nástroj by si měl pro každý stav generovaného sekvencializovaného systému udržovat přehled o tom, jaké funkce (BasicNts) jsou v jakém vlákně aktivní. Implementace takového nástroje nemusí být snadná, proto jsme učinili následující rozhodnutí:
+
+\begin{decision}\label{decision:sequentialize-flat-llvm}
+Nástroj pro sekvencializaci předpokládá, že vstupní paralelní systém neobsahuje funkční volání, tedy (v termínech) NTS není hierarchický. Takové NTS budeme dále označovat jako "ploché".
+\end{decision}
+
+Většina skutečných programů v jazyce LLVM IR ovšem obsahují funkční volání, a rádi bychom takové programy podporovali. Nabízejí se dvě možnosti, jak takovou podporu zajistit. První spočívá v tom, že paralelní program v jazyce LLVM IR přeložíme na paralelní a (potenciálně) hierarchický přechodový systém v jazyce NTS, který následně převedeme na ekvivalentní paralelní plochý přechodový systém. Alternativní možností je nejprve odstranit funkční volání z paralelního LLVM IR programu a následně tento plochý program převést na plochý paralelní přechodový systém. Oba způsoby však znamenají, že programy s rekurzivním voláním nebudou podporovány.
+
+\begin{enumerate}
+\item Zploštění programu v LLVM IR nevyžaduje téměř žádnou další práci, protože již na tuto úlohu existuje llvm průchod. Jmenuje se
+\href{http://llvm.org/docs/Passes.html#inline-function-integration-inlining}
+{\textit{inline}} a je součástí projektu LLVM. Nicméně nástroj pro překlad LLVM IR na NTS musí umět korektně přeložit volání funkce
+\href{http://man7.org/linux/man-pages/man3/pthread\_create.3.html}
+{\texttt{pthread\_create(3)}}, které v tomto případě nemůže být přeloženo jako volání BasicNts na úrovni NTS. Volání této funkce by tedy muselo být vhodně přeloženo již na úrovni LLVM kódu.
+
+\item Přestože je pro zplošťování NTS potřeba udělat o něco více práce, napsání odpovídajícího nástroje nám umožní sekvencializaci libovolného NTS, ne jen toho, které vzniklo překladem z LLVM, ale libovolného hierarchického NTS.
+\end{enumerate}
+
+\begin{decision}\label{decision:do-nts-flattening}
+Protože kvůli rozhodnutí~\ref{decision:sequentialize-flat-llvm} nástroj na sekvencializaci NTS podporuje pouze ploché NTS, vytvoříme nástroj, který z hierarchického NTS udělá nehierarchické (ploché) NTS.
+\end{decision}
+
+Celý problém se tedy rozkládá několik částí. Nejprve potřebujeme přeložit program z jazyka LLVM IR na přechodový systém v jazyce NTS, z toho pak odstranit volací přechody, plochý program sekvencializovat s využitím partial order redukce a nakonec ho uložit do souboru. Pro spolupráci těchto částí je třeba mít vybudovanou vhodnou paměťovou reprezentaci programu v jazyce NTS. Existence parseru by byla užitečná (zejména pro testování), ale není nutná.
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 
 \chapter{Překlad LLVM na NTS}
+\label{sec:translation}
 \section{Omezení LLVM}
-
-\subsection{Pole}
-Nepodporuji (zatím). Přidat podporů některých operací nad poli by ale nemusel být problém
+Překládací nástroj podporuje jenom velice omezenou podmnožinu jazyka LLVM IR. Mezi nepodporované vlastnosti patří zejména pole, struktury a další složitější datové typy.
 
 \subsection{Pointery}
-Překládací nástroj zatím obecně neumí pracovat s ukazateli, zejména nepodporuje pointerovou aritmetiku. Nicméně protože jazyk LLVM pointery hojně využívá, a to zejména pro práci s globálními proměnnými a lokálními zásobníkově alokovanými proměnnými, překládací nástroj umí korektně přeložit několik speciálních případů použití ukazatelů. Mezi ně patří
+Nástroj zatím obecně neumí pracovat s ukazateli, zejména nepodporuje pointerovou aritmetiku. Nicméně protože jazyk LLVM pointery hojně využívá, a to zejména pro práci s globálními proměnnými a lokálními zásobníkově alokovanými proměnnými, překládací nástroj umí korektně přeložit několik speciálních případů použití ukazatelů. Mezi ně patří
 \begin{itemize}
 \item čtení a zápis globálních proměnných pomocí instrukcí \texttt{load} a \texttt{store},
-\item čtení a zápis proměnných alokovaných pomocí instrukce \texttt{alloca} a
-\item předávání parametrů funkci \texttt{thread\_create}.
+\item čtení a zápis proměnných alokovaných pomocí instrukce \texttt{alloca}
+\item a předávání parametrů funkci \texttt{thread\_create}.
 \end{itemize}
 
 \subsection{Instrukce}
-Překládací nástroj v současné době podporuje jen velice omezenou množinu instrukcí. Mezi ně patří instrukce pro zápis do a čtení z paměti (load / store), instrukce volání a návratu z funkce (call/ret), instrukce skoků a větvení (br), porovnávací instrukce (icmp, pouze nad neznaménkovými operandy), instrukce pro sčítání čísel (add) a alokaci paměti na zásobníků (alloca).
-Také nepodporuji znaménkovou aritmetiku a hromadu instrukcí. Například znaménkové přetečení při add neošetřuji, přestože je to principiálně možné. Vede to k složitým formulím. Pokud ale bude překladová utilita vyvíjená dále, je to jedna z věcí, která by mohla být volitelná (tedy jestli vracet nedefinovaný výsledek nebo přejít do err stavu nebo pokračovat jako nic). S tím souvisí Poison a Undef values.
+Množina podporovaných instrukcí je velice omezená. Patří mezi ně instrukce pro zápis do a čtení z paměti (load / store), instrukce volání a návratu z funkce (call/ret), instrukce skoků a větvení (br), porovnávací instrukce (icmp, pouze nad neznaménkovými operandy), instrukce pro sčítání čísel (add) a alokaci paměti na zásobníků (alloca).
 
 \subsection{Znaménkovost}
 %\subsubsection{Vyjádření v neznaménkové aritmetice}
-Jak číselné datové typy v jazyce LLVM IR, tak přidaný BitVector typ v jazyce NTS jsou bezznaménkové. Nicméně některé LLVM instrukce (například ICMP) mohou interpretovat použité proměnné znaménkově. Přestože je principiálně možné vyjádřit sémantiku znaménkových operací pomocí bezznamnékové aritmetiky \todo{ukázat jak na to}, výsledné formule by byly složitější. \todo{zminit semantiku operaci nad BitVector}
+Jak číselné datové typy v jazyce LLVM IR, tak přidaný BitVector typ v jazyce NTS jsou bezznaménkové. Nicméně některé LLVM instrukce (například ICMP) mohou interpretovat použité proměnné znaménkově. Přestože je principiálně možné vyjádřit sémantiku znaménkových operací pomocí bezznamnékové aritmetiky, výsledné formule by byly složitější.
 \begin{figure}[h!]
 \begin{lstlisting}
 %b = icmp slt i8 %x, 10
 \end{lstlisting}
 \end{figure}
-Tato instrukce přiřadí do proměnné 'b' hodnotu 1 právě pokud x je znaménkově menší (signed less then, slt) než hodnota 10, tedy právě pokud x bude mít hodnotu v rozsahu -128 až 9. Tento rozsah, vyjádřený v dvojkovém doplňkovém kódu \todo{Někde zmínit, že llvm ir využívá právě dvojkový doplněk}, odpovídá neznaménkovým hodnotám v rozsahu 0 \ldots 9 nebo 128 \ldots 255. 
+Tato instrukce přiřadí do proměnné 'b' hodnotu 1 právě pokud x je znaménkově menší (signed less then, slt) než hodnota 10, tedy právě pokud x bude mít hodnotu v rozsahu -128 až 9. Tento rozsah, vyjádřený v dvojkovém doplňkovém kódu\footnote{LLVM IR používá pro reprezentaci znaménkových hodnot právě dvojkový doplněk.} , odpovídá neznaménkovým hodnotám v rozsahu 0 \ldots 9 nebo 128 \ldots 255. 
 
 \begin{figure}[h!]
 \begin{lstlisting}
@@ -479,7 +475,7 @@ pthread_create ( &t, NULL, f, NULL );
 \end{figure}
 
 \subsection{Funce \texttt{pthread\_join}}
-Funkce \texttt{pthread\_join} zatím není v aktuální verzi implementována, nicméně její implementace by měla být poměrně přímočará, jak uvidíme později v sekci \todo{TODO}. Pokud bude překládací nástroj dále vyvíjen, funkce \texttt{pthread\_join} se pravděpodobně implementace dočká.
+Funkce \texttt{pthread\_join} zatím není v aktuální verzi implementována, nicméně její implementace by měla být poměrně přímočará (spočívala by v čekání na globální proměnnou). Pokud bude překládací nástroj dále vyvíjen, funkce \texttt{pthread\_join} se pravděpodobně implementace dočká zejména pro svou důležitost.
 
 \subsection{Funce \texttt{pthread\_exit}}
 Naopak, funkce \texttt{pthread\_exit} implementována není a možná ani nebude, a to ze dvou důvodů.
@@ -487,8 +483,9 @@ Naopak, funkce \texttt{pthread\_exit} implementována není a možná ani nebude
 \item Její absence příliš nevadí, protože její význam je stejný jako návrat z hlavní funkce vlákna.
 \item Tato funkce příliš drasticky mění tok řízení, zejména není-li zavolána z hlavní funkce vlákna, nýbrž z funkce vnořené. Její zavolání v jazyce NTS by mělo způsobit opuštění všech zásobníkových oken, což není v současné implementaci překladu funkcí snadno proveditelné.
 \end{enumerate}
-\todo{Jop, ale mohli bychom překládat funkce tak, že by BasicBlocky měly jednu speciální návratovou proměnnou navíc, tedy procedury by vracely jednu hodnotu a funkce dvě. Speciální návratová hodnota by mohla informovat režijní kód o podobných věcech, výjimkách a dalších legracích.}
-Druhý důvod by nebyl problém v případě, že bychom překládali již zploštělý LLVM IR kód. Tato možnost je však není zcela v souladu s rozhodnutím~\ref{decision:do-nts-flattening}. Z druhého důvodu také není implementována ani funkce \texttt{pthread\_cancel}.
+Druhý důvod by nebyl problém v případě, že bychom překládali již zploštělý LLVM IR kód. Tato možnost však není zcela v souladu s rozhodnutím~\ref{decision:do-nts-flattening}. Ze stejného důvodu také není implementována ani funkce \texttt{pthread\_cancel}.
+
+%Jop, ale mohli bychom překládat funkce tak, že by BasicBlocky měly jednu speciální návratovou proměnnou navíc, tedy procedury by vracely jednu hodnotu a funkce dvě. Speciální návratová hodnota by mohla informovat režijní kód o podobných věcech, výjimkách a dalších legracích.
 
 \section{Rozšíření NTS}
 \label{sec:nts-extensions}
@@ -684,11 +681,8 @@ Množství skutečných programů se nevejde do množiny, podporované první mo
 Překládací nástroj neklade žádná omezení na umístění a četnost výskytů volání funkce \texttt{pthread\_create}.
 \end{decision}
 
-\section{Inliner}
-\todo{Kde je inliner? Nepatří k libNTS?}
-Používáme anotace, abychom zjistili, odkud jaká proměnná pochází. Nebo je to až u inlineru?
 
-\todo{Btw vůbec neřešíme memory modely a předpokládáme sekvenční konzistenci.}
+%\todo{Btw vůbec neřešíme memory modely a předpokládáme sekvenční konzistenci.}
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -911,7 +905,7 @@ b) Umět rozpoznat původně existující struktury i v přeloženém a zplacat�
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \chapter{Implementace}
-
+\label{sec:implementation}
 \section{Přehled existujících nástrojů}
 V době vzniku této práce již existovala řada nástrojů, pracující s jazykem NTS. Na webové stránce jazyka
 \fnurl{NTS}{http://nts.imag.fr/index.php/Main_Page}
@@ -944,6 +938,9 @@ Knihovna libNTS v sobě neobsahuje parser jazyka NTS. Petr Bauch však vyvíjí 
 \fnurl{nts-parser}{https://github.com/xbauch/nts-parser}
 , který by měl v budoucnu umět z vybudovaného AST poskládat paměťovou reprezentaci přechodového systému ve formátu knihovny libNTS.
 
+\subsection{Inliner}
+Součástí libNTS je však nástroj pro zplošťování hierachických NTS, nazývaný \textit{inliner}. Jeho princip je velice jednoduchý: přepokládá, že zvolený přechodový systém neobshuje rekurzivní volání, a postupně nahrazuje jednotlivá volací přechodová pravidla cílovým BasicNts. Při této činnosti ke každé nově vytvořené proměnné (a stavu) připojí anotaci, obsahující informaci o původu této proměnné. Jedním z problémů zplošťování je to, že již nadále není možné specifikovat velikost lokálních polí až při zavolání cílového BasicNts.
+
 \subsection{Architektura}
 Architektura knihovny do velké míry odpovídá struktuře jazyka NTS. Celý přechodový systém se skládá ze seznamu vláken a jejich vstupních bodů, globálních proměnných a seznamu BasicNts, které obsahují zejména proměnné a přechody. Záměrem bylo vytvořit obecnou knihovnu, která bude použitelná i mimo tuto práci, a její architektura byla v některých ohledech (například uživatelé proměnných, sekce~\ref{subsec:libNTS:variable:use}) inspirována architekturou paměťové reprezentace LLVM IR.
 
@@ -967,6 +964,8 @@ Dalším ze způsobů, jak knihovna libNTS ulehčuje práci svým uživatelům, 
 
 \subsection{Omezení}
 Knihovna libNTS v současné době nepodporuje celý jazyk NTS. Mezi chybějící vlastnosti patří práce s poli, zejména jejich přiřazení, reference polí a předávání polí jako parametrů funkcí. Tyto vlastnosti buď nejsou vůbec implementovány, nebo jsou netestovány. Další vlastnosti (anotace, zjišťování vlastníků prvků) jsou implementovány neúplně či nesystematicky. Takovýchto omezení by však mělo v čase ubývat, navíc se dá předpokládat, že do knihovny bude přibývat další funkcionalita, která je v současné době implementována v externích nástrojích přímo.
+
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -1024,8 +1023,7 @@ Nástroj pro partial order reduction (
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \chapter{Nepřiřazeno}
-\section{Inlining}
-Jo teda nepodporuju rekurzi, a proto si můžu dovolit to, co dělám v inlineru - prostě tak dlouho zainlinovávám jednotlivé BasicNts, až mi nezůstané žádné volání.
+
 
 \section{Možná budoucí rozšíření}
 \todo{Petr psal autorům NTS, a pokud si dobře vzpomínám, jeden z nich projevil přání, abychom mohli překládat llvm do stávající podmnožiny NTS - tedy do intů. Celé LLVM tak nepůjde, ale jistá podmnožina ano. Každopádně zatím se na tom nepracuje.}
