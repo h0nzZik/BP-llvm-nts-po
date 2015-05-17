@@ -18,6 +18,8 @@
 \usepackage{todonotes} % command \todo
 \usepackage[plainpages=false,pdfpagelabels]{hyperref}
 \usepackage{listings}
+
+\usepackage{pdfpages}
 \usepackage[toc,page,title,titletoc]{appendix}
 \usepackage[
    backend=biber      % if we want unicode 
@@ -27,7 +29,7 @@
   ,bibencoding=UTF8   % this is necessary only if bibliography file is in different encoding than main document
 ]{biblatex}
 
-\thesistitle{Sample thesis} % enter thesis title
+\thesistitle{Partial Order redukce pro LLVM} % enter thesis title
 \thesissubtitle{Bakalářská práce}
 \thesisstudent{Jan Tušil}
 \thesiswoman{false}
@@ -77,6 +79,12 @@
 
 \FrontMatter
 \ThesisTitlePage
+
+\includepdf[pages={1}]{prohlaseni.pdf}
+\includepdf[pages={1}]{zadani.pdf}
+
+
+
 \begin{ThesisDeclaration}
 \DeclarationText
 \AdvisorName
@@ -1037,7 +1045,7 @@ Překládací nástroj pro oba příklady generuje jedno hlavní a dvě pracovn�
 \chapter{Závěr}
 Přestože se nám podařilo vytvořit nástroj, který přeloží a zredukuje program v jazyce LLVM IR na sekvenční přechodový systém v jazyce NTS, zredukovaný přechodový systém je (jak je vidět z experimentálních výsledků) poměrně veliký i pro malé programy. Tato neefektivita v redukci je způsobena jak zmíněnými problémy (viz~\ref{sec:por-problems}), tak použitím hrubé syntaktické heuristiky pro ověření podmínky C0 (viz \ref{sec:por-static}), která neumožňuje redukovat systém v místech větvení. Mezi další nedostatky vytvořeného nástroje patří zejména pouze omezená podpora knihovny \texttt{pthreads}, což má za důsledek, že nástroj je použitelný jen na malé množství paralelních programů, a nízký počet implementovaných instrukcí.
 
-Odstranění některých nedostatků by mělo být vcelku jednoduché. Mezi tyto patří přidání podpory pro funkce \texttt{pthread\_join}, použití externího solveru pro ověřování podmínky C0 a implementace dalších LLVM instrukcí. Naopak vyřešení problém velkého procesu bude zřejmě vyžadovat delší zamyšlení.
+Odstranění některých nedostatků by mělo být vcelku jednoduché. Mezi tyto patří přidání podpory pro funkce \texttt{pthread\_join}, použití externího solveru pro ověřování podmínky C0 a implementace dalších LLVM instrukcí. Naopak vyřešení problému velkého procesu bude zřejmě vyžadovat delší zamyšlení.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
