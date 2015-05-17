@@ -100,7 +100,7 @@ Tyto dvě části jsou poměrně nezávislé a mohou být implementovány jako r
 %Všechno ve formě knihovny - jednoduché rozhraní, snadno použitelné.
 
 \section{Popis následujících kapitol}
-Následující text obsahuje nejprve popis použitých technologií (kap.~\ref{sec:technologies}), konkrétně jazyka LLVM IR, knihovny posixových vláken, jazyka NTS a techniky POR, následuje krátká analýza (kap.~\ref{sec:analysis}) řešeného problému a popis způsobu překladu jazyka LLVM IR do jazyka NTS (kap.~\ref{sec:translation}). Další kapitola~(\ref{sec:nts-por}) obsahuje komentář k použití POR pro redukci přechodových systému v jazyce, následovaná kapitolou~\ref{sec:implementation} zabývající se implementací knihovny \textit{libNTS}, která slouží k práci s paměťovou reprezentací přechodového systému v jazyce NTS. Práci uzavíráme krátkým popisem experimentálních výsledků.
+Následující text obsahuje nejprve popis použitých technologií (kap.~\ref{sec:technologies}), konkrétně jazyka LLVM IR, knihovny posixových vláken, jazyka NTS a techniky POR, následuje krátká analýza (kap.~\ref{sec:analysis}) řešeného problému a popis způsobu překladu jazyka LLVM IR do jazyka NTS (kap.~\ref{sec:translation}). Další kapitola~(\ref{sec:nts-por}) obsahuje komentář k použití POR pro redukci přechodových systému v jazyce NTS, následovaná kapitolou~\ref{sec:implementation} zabývající se implementací knihovny \textit{libNTS}, která slouží k práci s paměťovou reprezentací přechodového systému v jazyce NTS. Práci uzavíráme krátkým popisem experimentálních výsledků.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -378,7 +378,7 @@ Pro splnění C3 stačí, aby v každém cyklu existoval alespoň jeden plně ex
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %BTW: NTS je 'ten' - system
-\chapter{Analýza}
+\chapter{Analýza problému}
 \label{sec:analysis}
 Jak již bylo řečeno v úvodu, celá úloha se skládá ze dvou částí, tedy z překladu programu z LLVM IR do NTS a  ze sekvencializaci vytvořeného paralelního NTS s použitím POR. Pokud bychom o přeloženém paralelním NTS nic předpokládali, nástroj pro sekvencializaci by měl umět korektně zacházet s funkčními voláními (respektive s voláními jiných BasicNts), protože ta mohou být součástí programu. To by zejména znamenalo, že nástroj by si měl pro každý stav generovaného sekvencializovaného systému udržovat přehled o tom, jaké funkce (BasicNts) jsou v jakém vlákně aktivní. Implementace takového nástroje nemusí být snadná, proto jsme učinili následující rozhodnutí:
 
@@ -991,11 +991,26 @@ make install
 Nástroj pro partial order reduction (
 \fnurl{GitHub}{https://github.com/h0nzZik/llvm-nts-PartialOrderReduction}) se skládá z knihovní části a řídícího programu; zatímco knihovní část závisí pouze na libNTS, řídící program závisí i na llvm2nts. Jeho kompilace je podobná kompilaci nástrojů zmíněných výše, je tedy třeba nejprve specifikovat, kde se nachází nainstalované knihovny, a poté spustit kompilaci příkazem \verb+make+.
 
+\section{Výsledky testů}
+Protože překládací nástroj v současné verzi implementuje z knihovny \texttt{pthreads} pouze funkci \texttt{pthread\_create}, množina vstupních paralelních programů v jazyce LLVM IR je značně omezená. Testy tak byly provedeny jenom na dvou případech, které se jako součást nástroje pro POR nachází v adresáři \texttt{bench}, a jejich výsledky shrnuje tabulka~\ref{tbl:experimental-results}.
 
+\begin{table}
+\begin{tabular}{|l|l|l|l|l|}
+\hline
+&\multicolumn{2}{c|}{bez POR} & \multicolumn{2}{c|}{s POR} \\
+případ & stavy & hrany & stavy & hrany \\
+\hline
+simplest & 225 & 675 & 157 & 275\\
+fib\_bench\_false-unreach-call & 38988 & 129504 & 29383 & 63888 \\
+\hline
+\end{tabular}
+\caption{Experimentální výsledky}
+\label{tbl:experimental-results}
+\end{table}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \chapter{Závěr}
-
+Přestože 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
