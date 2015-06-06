@@ -1,5 +1,5 @@
 %\documentclass[10pt,a4paper,notitlepage]{report}
-\documentclass[12pt]{fithesis2}
+\documentclass[12pt,twoside]{fithesis2}
 \usepackage[utf8]{inputenc}
 \usepackage[czech]{babel}
 \usepackage[T1]{fontenc}
@@ -80,7 +80,9 @@
 \FrontMatter
 \ThesisTitlePage
 
+\cleardoublepage
 \includepdf[pages={1}]{zadani.pdf}
+\cleardoublepage
 \includepdf[pages={1}]{prohlaseni.pdf}
 
 
@@ -730,9 +732,9 @@ Pro každý řídící stav $q$ nějakého BasicNts označíme množinu přechod
 \end{definition}
 
 \begin{definition}
-Pro libovolné přechodové pravidlo $t$ a konfigurace $c_1 = \tuple{Q_1, v_1}$, $c_2=\tuple{Q_2, v_2}$, $Q_1 = \tuple{q_{1,1}, \ldots, q_{1, m}}$, $Q_2 = \tuple{q_{2,1}, \ldots, q_{2, m}}$ paralelního systému, zápisem $c_1 \rulemapsto{t} c_2$ rozumíme, že je možné provést přechod ze stavu $c_1$ do stavu $c_2$ pomocí přechodového pravidla $t$. To může nastat právě tehdy, pokud existuje $i$ takové, že
+Pro libovolné přechodové pravidlo $t$ a konfigurace $c_1 = \tuple{Q_1, v_1}$, $c_2=\tuple{Q_2, v_2}$, $Q_1 = \tuple{q_{1,1}, \ldots, q_{1, m}}$, $Q_2 = \tuple{q_{2,1}, \ldots, q_{2, m}}$ paralelního systému, zápisem $c_1 \rulemapsto{t} c_2$ rozumíme, že je možné provést přechod z $c_1$ do $c_2$ pomocí přechodového pravidla $t$. To může nastat právě tehdy, pokud existuje $i$ takové, že
 \begin{equation}
-q_{1,i} \rulemapsto{t} q_{1,j} \land \bigwedge_{j \neq i}\left({q_{1,j} = q_{1,i}}\right)
+\tuple{q_{1,i}, v_1} \rulemapsto{t} \tuple{q_{2,i}, v_2} \land \bigwedge_{j \neq i}\left({q_{1,j} = q_{2,j}}\right)
 \end{equation}
 Zápisem
 \begin{equation*}
