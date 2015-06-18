@@ -1,0 +1,256 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   width="800"
+   height="600"
+   version="1.1"
+   id="svg3355"
+   inkscape:version="0.91 r13725"
+   sodipodi:docname="transitionsystem.svg"
+   inkscape:export-filename="/home/jenda/Documents/School-current/BP/BP-llvm-nts-po/obhajoba/transitionsystem.png"
+   inkscape:export-xdpi="90"
+   inkscape:export-ydpi="90">
+  <metadata
+     id="metadata3401">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+        <dc:title></dc:title>
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+  <defs
+     id="defs3399" />
+  <sodipodi:namedview
+     pagecolor="#ffffff"
+     bordercolor="#666666"
+     borderopacity="1"
+     objecttolerance="10"
+     gridtolerance="10"
+     guidetolerance="10"
+     inkscape:pageopacity="0"
+     inkscape:pageshadow="2"
+     inkscape:window-width="1366"
+     inkscape:window-height="704"
+     id="namedview3397"
+     showgrid="false"
+     inkscape:zoom="1.2020815"
+     inkscape:cx="217.36322"
+     inkscape:cy="349.56685"
+     inkscape:window-x="0"
+     inkscape:window-y="27"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg3355">
+    <inkscape:grid
+       type="xygrid"
+       id="grid4235" />
+  </sodipodi:namedview>
+  <ellipse
+     stroke="black"
+     stroke-width="1"
+     fill="none"
+     cx="282.5"
+     cy="366.5"
+     rx="30"
+     ry="30"
+     id="ellipse3357" />
+  <text
+     x="270.5"
+     y="372.5"
+     font-family="Times New Roman"
+     font-size="20"
+     id="text3359">q0</text>
+  <ellipse
+     stroke="black"
+     stroke-width="1"
+     fill="none"
+     cx="481.5"
+     cy="366.5"
+     rx="30"
+     ry="30"
+     id="ellipse3361" />
+  <text
+     x="469.5"
+     y="372.5"
+     font-family="Times New Roman"
+     font-size="20"
+     id="text3363">q1</text>
+  <ellipse
+     stroke="black"
+     stroke-width="1"
+     fill="none"
+     cx="481.5"
+     cy="366.5"
+     rx="24"
+     ry="24"
+     id="ellipse3365" />
+  <ellipse
+     cx="282.5"
+     cy="224.5"
+     rx="30"
+     ry="30"
+     id="ellipse3367"
+     stroke-width="1"
+     stroke="black"
+     fill="none" />
+  <text
+     x="270.5"
+     y="230.5"
+     font-size="20"
+     id="text3369"
+     font-family="Times New Roman">q2</text>
+  <ellipse
+     cx="481.5"
+     cy="224.5"
+     rx="30"
+     ry="30"
+     id="ellipse3371"
+     stroke-width="1"
+     stroke="black"
+     fill="none" />
+  <text
+     x="469.5"
+     y="230.5"
+     font-size="20"
+     id="text3373"
+     font-family="Times New Roman">q3</text>
+  <ellipse
+     cx="481.5"
+     cy="224.5"
+     rx="24"
+     ry="24"
+     id="ellipse3375"
+     stroke-width="1"
+     stroke="black"
+     fill="none" />
+  <polygon
+     stroke="black"
+     stroke-width="1"
+     points="312.5,366.5 451.5,366.5"
+     id="polygon3377" />
+  <polygon
+     fill="black"
+     stroke-width="1"
+     points="451.5,366.5 443.5,361.5 443.5,371.5"
+     id="polygon3379" />
+  <text
+     x="329.5"
+     y="357.5"
+     font-family="Times New Roman"
+     font-size="20"
+     id="text3381">X = P' * Q'</text>
+  <polygon
+     points="312.5,224.5 451.5,224.5"
+     id="polygon3383"
+     stroke-width="1"
+     stroke="black" />
+  <polygon
+     points="451.5,224.5 443.5,219.5 443.5,229.5"
+     id="polygon3385"
+     stroke-width="1"
+     fill="black" />
+  <text
+     x="329.5"
+     y="245.5"
+     font-size="20"
+     id="text3387"
+     font-family="Times New Roman">X' = X + 1</text>
+  <polygon
+     points="224.5,224.5 252.5,224.5"
+     id="polygon3389"
+     stroke-width="1"
+     stroke="black" />
+  <polygon
+     points="252.5,224.5 244.5,219.5 244.5,229.5"
+     id="polygon3391"
+     stroke-width="1"
+     fill="black" />
+  <polygon
+     stroke="black"
+     stroke-width="1"
+     points="223.5,366.5 252.5,366.5"
+     id="polygon3393" />
+  <polygon
+     fill="black"
+     stroke-width="1"
+     points="252.5,366.5 244.5,361.5 244.5,371.5"
+     id="polygon3395" />
+  <rect
+     style="fill:#b1bdff;fill-opacity:0.39087949;stroke:#000000;stroke-width:0.9911384;stroke-opacity:1"
+     id="rect4215"
+     width="379.00885"
+     height="119.00886"
+     x="165.49557"
+     y="160.49557" />
+  <rect
+     style="fill:#b1bd57;fill-opacity:0.39087949;stroke:#000000;stroke-width:1.19777846;stroke-opacity:1"
+     id="rect4217"
+     width="378.80225"
+     height="119.80222"
+     x="165.59889"
+     y="299.59888" />
+  <text
+     xml:space="preserve"
+     style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:20px;line-height:125%;font-family:'Liberation Mono';-inkscape-font-specification:'Liberation Mono, Normal';text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+     x="63.529415"
+     y="282.35294"
+     id="text4219"
+     sodipodi:linespacing="125%"><tspan
+       sodipodi:role="line"
+       id="tspan4221"
+       x="63.529415"
+       y="282.35294">X : Int</tspan></text>
+  <text
+     xml:space="preserve"
+     style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:20px;line-height:125%;font-family:'Liberation Mono';-inkscape-font-specification:'Liberation Mono, Normal';text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+     x="62.62616"
+     y="311.34875"
+     id="text4223"
+     sodipodi:linespacing="125%"><tspan
+       sodipodi:role="line"
+       x="62.62616"
+       y="311.34875"
+       id="tspan4227">P : Int</tspan></text>
+  <text
+     xml:space="preserve"
+     style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:20px;line-height:125%;font-family:'Liberation Mono';-inkscape-font-specification:'Liberation Mono, Normal';text-align:start;letter-spacing:0px;word-spacing:0px;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+     x="62.352932"
+     y="340"
+     id="text4231"
+     sodipodi:linespacing="125%"><tspan
+       sodipodi:role="line"
+       id="tspan4233"
+       x="62.352932"
+       y="340">Q : Int</tspan></text>
+  <text
+     xml:space="preserve"
+     style="font-style:normal;font-weight:normal;font-size:14px;line-height:125%;font-family:Sans;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+     x="178.62598"
+     y="179.80176"
+     id="text4237"
+     sodipodi:linespacing="125%"><tspan
+       sodipodi:role="line"
+       id="tspan4239"
+       x="178.62598"
+       y="179.80176">Vlákno 1</tspan></text>
+  <text
+     xml:space="preserve"
+     style="font-style:normal;font-weight:normal;font-size:14px;line-height:125%;font-family:Sans;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:1px;stroke-linecap:butt;stroke-linejoin:miter;stroke-opacity:1"
+     x="178.62598"
+     y="319.80176"
+     id="text4241"
+     sodipodi:linespacing="125%"><tspan
+       sodipodi:role="line"
+       id="tspan4243"
+       x="178.62598"
+       y="319.80176">Vlákno 2</tspan></text>
+</svg>

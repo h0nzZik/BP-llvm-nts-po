@@ -1,0 +1,18 @@
+digraph worker_thread {
+    rankdir=LR;
+    size="8,5"
+
+    node [shape = doublecircle]; S;
+    node [shape = point ]; qi
+
+    node [shape = circle];
+    qi -> SI;
+    SI -> S  [ label = "F ' = 0"];
+   
+    S  -> s1 [ label = "F  = 1" ];
+    s1 -> SI [ label = "thread_func_1()" ];
+    
+    S  -> s2 [ label = "F  = 2" ];
+    s2 -> SI [ label = "thread_func_2()" ];
+}
+
